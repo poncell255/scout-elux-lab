@@ -1,0 +1,9 @@
+{
+  "name": "populos-theme-v3",
+  "accentColor": "#6B2FBF",
+  "desktopBackgroundImage": { "type": "jpg", "scaling": "crop" },
+  "productImage": { "type": "png", "scaling": "contain" },
+  "brandImage": { "type": "png", "scaling": "contain" },
+  "welcomeBackgroundImage": { "type": "png", "scaling": "crop" },
+  "welcomeBackgroundLayout": "leftImage"
+}

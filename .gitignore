@@ -1,0 +1,9 @@
+config/parametros.ps1
+credenciais.txt
+*.key
+*.ovpn
+*.p12
+*.pfx
+*.bak
+*.log
+backup/

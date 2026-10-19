@@ -1,0 +1,8 @@
+{
+  "name": "bomjesus-v4",
+  "accentColor": "#005020",
+  "desktopBackgroundImage": { "type": "jpg", "scaling": "crop" },
+  "productImage": { "type": "png", "scaling": "contain" },
+  "brandImage": { "type": "png", "scaling": "contain" },
+  "welcomeBackgroundLayout": "none"
+}

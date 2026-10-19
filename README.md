@@ -1,0 +1,37 @@
+# Scout Enterprise + ELIAS 18 + eLux 7 — laboratório POPULOS
+
+Repositório para **recriar do zero** um ambiente de gerenciamento de thin clients eLux 7 com Citrix/Unicon Scout Enterprise, num Windows Server sem domínio, com login do Scout Board via Microsoft Entra ID, imagens de firmware montadas no ELIAS 18 e temas por OU.
+
+> Escrito para ser seguido por uma pessoa **ou por outro agente de IA**. Comece pelo [RUNBOOK](docs/RUNBOOK.md): ele está em ordem de execução e cita os scripts deste repositório.
+
+## O que este ambiente entrega
+
+| Componente | Versão usada | Função |
+|---|---|---|
+| Windows Server 2025 (sem domínio) | 10.0.26100 | Host único |
+| SQL Server Express | 2025 (17.0) | Banco `ScoutEnterprise` |
+| Scout Enterprise Management Suite | 15.2609 (26.9.0) | Gerência dos eLux (Server, Console, Board, Keep Alive, Report, Recovery, ELIAS clássico) |
+| Citrix License Server | 11.17.2 build 56200 | Licença do Scout via LAS (Citrix Cloud) |
+| ELIAS 18 | 26.3.2 | Montagem das imagens (IDF) e servidor de firmware via IIS |
+| eLux 7 | 7.2609 | Sistema dos thin clients |
+| Microsoft Entra ID | — | Login do Scout Board (OIDC) |
+
+Resultado validado: eLux registrado no Scout; firmware atualizado pela imagem `populos-elux7-v4`; temas por OU (papel de parede e logo na tela de boot); Outlook e Teams via Edge `--app`; Citrix Workspace (StoreFront); Horizon (Omnissa); OU de quiosque.
+
+## Estrutura
+
+```
+README.md                        este arquivo
+docs/RUNBOOK.md                  passo a passo de recriação (comece aqui)
+docs/DB-REFERENCE.md             tabelas e códigos do banco do Scout (não documentados pela Citrix)
+docs/LICOES.md                   armadilhas encontradas e como evitar
+docs/HISTORICO.md                diário completo da implantação original (sanitizado)
+scripts/                         PowerShell e SQL usados
+assets/themes/                   temas eLux prontos (Populos, Bom Jesus, Enterprise)
+assets/icons/                    ícones 32x32 dos apps
+config/parametros.example.ps1    valores que mudam de um ambiente para outro
+```
+
+## Segredos
+
+Nenhuma senha, chave ou token está neste repositório; todos viraram marcadores `<ASSIM>`. Os valores reais ficam no servidor, em `C:\ScoutSetup\credenciais.txt` (fora do Git, ACL só Administradores). Antes de qualquer `git push`, rode `scripts/verificar-segredos.ps1`.
