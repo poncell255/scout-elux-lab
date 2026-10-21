@@ -1,6 +1,6 @@
 # Scout Enterprise + ELIAS 18 + eLux 7 — laboratório POPULOS
 
-Repositório para **recriar do zero** um ambiente de gerenciamento de thin clients eLux 7 com Citrix/Unicon Scout Enterprise, num Windows Server sem domínio, com login do Scout Board via Microsoft Entra ID, imagens de firmware montadas no ELIAS 18 e temas por OU.
+Repositório para **recriar do zero** um ambiente de gerenciamento de thin clients eLux 7 com Citrix/Unicon Scout Enterprise num Windows Server (começou fora de domínio e depois entrou no AD `populos.local`), com login do Scout Board via Microsoft Entra ID, imagens de firmware montadas no ELIAS 18, temas por OU, login AD nos eLux e uma parede de 6 TVs (OU "TV Projetos").
 
 > Escrito para ser seguido por uma pessoa **ou por outro agente de IA**. Comece pelo [RUNBOOK](docs/RUNBOOK.md): ele está em ordem de execução e cita os scripts deste repositório.
 
@@ -16,7 +16,7 @@ Repositório para **recriar do zero** um ambiente de gerenciamento de thin clien
 | eLux 7 | 7.2609 | Sistema dos thin clients |
 | Microsoft Entra ID | — | Login do Scout Board (OIDC) |
 
-Resultado validado: eLux registrado no Scout; firmware atualizado pela imagem `populos-elux7-v4`; temas por OU (papel de parede e logo na tela de boot); Outlook e Teams via Edge `--app`; Citrix Workspace (StoreFront); Horizon (Omnissa); OU de quiosque.
+Resultado validado: eLux registrado no Scout; firmware atualizado pelas imagens `populos-elux7-v4` (geral) e `populos-elux7-v5` (v4 + driver NVIDIA, OU TV Projetos); temas por OU (papel de parede e logo na tela de boot); Outlook e Teams via Edge `--app`; Citrix Workspace (StoreFront); Horizon (Omnissa); OU de quiosque; **login AD (Kerberos) nos eLux** com OUs sem AD (Populos NonDomain, Modo Kiosk, TV Projetos); NTP; **mirror pelo Scout Board** com controle e sem pedir permissão; tela sempre ativa (sem bloqueio/suspensão); 2 monitores clonados; **6 TVs** com duas NVIDIA Quadro em Base Mosaic, cada uma com uma página do PopulosHub em quiosque, login automático e recarga a cada 5 min.
 
 ## Estrutura
 
@@ -27,6 +27,7 @@ docs/DB-REFERENCE.md             tabelas e códigos do banco do Scout (não docu
 docs/LICOES.md                   armadilhas encontradas e como evitar
 docs/HISTORICO.md                diário completo da implantação original (sanitizado)
 scripts/                         PowerShell e SQL usados
+tv-projetos/                     parede de 6 TVs: proxy IIS + tv.js, start-tv.sh, Xorg Base Mosaic (ver tv-projetos/README.md)
 assets/themes/                   temas eLux prontos (Populos, Bom Jesus, Enterprise)
 assets/icons/                    ícones 32x32 dos apps
 config/parametros.example.ps1    valores que mudam de um ambiente para outro

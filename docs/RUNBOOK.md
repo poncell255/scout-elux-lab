@@ -80,7 +80,25 @@ Ver `docs/DB-REFERENCE.md` e `scripts/sql/apps-*.sql`:
 
 Testado e documentado em `docs/HISTORICO.md`: Cloudflare Tunnel (precisa de saída TCP/UDP **7844**; bloqueado em algumas redes), DDNS no Cloudflare, OpenVPN no Windows para comandos do Scout a eLux atrás de CGNAT (o roteador Vivo só grava regra TCP → VPN em TCP 1194). Para eLux de fora da rede receberem comandos do Scout é preciso VPN ou Scout Cloud Gateway (Linux, 8 GB).
 
-## 10. Validação final
+## 10. Login AD nos eLux (servidor no domínio)
+
+1. Servidor no domínio (`populos.local`, DC `POPAD01` 10.20.0.10). O DC raiz precisa de hora certa: W32Time registrado e, na **Default Domain Controllers Policy**, `HKLM\SOFTWARE\Policies\Microsoft\W32Time\Parameters` `Type=NTP` + `NtpServer=a.ntp.br,0x8 b.ntp.br,0x8`; firewall UDP 123.
+2. `scripts/ad-e-nondomain.ps1`: `Setup.AuthType=3`, `DefaultDomain`, linha em `AuthDomain` nos setups com AD; cria a OU sem AD (setup clonado com `AuthType=0`). `scripts/kiosk-sem-ad.ps1` faz o mesmo para uma OU existente.
+3. `scripts/ntp-elux.ps1`: servidores de horário em todos os setups (Kerberos recusa > 5 min).
+4. `scripts/krb5-elux.ps1`: `/setup/krb5.conf.d/populos.conf` com `kdc` fixo (o eLux só acha o KDC por SRV no DNS; necessário quando o DHCP não entrega o DNS do AD). `scripts/hosts-ad-elux.ps1` (hosts) ajuda mas não basta.
+5. Imagem: a v4 já traz `userauth`/`userauthldap`/`kerberos_config`.
+
+## 11. Mirror, energia e monitores
+
+- Mirror: `Setup.Mirror = Mirror | 1` (ativo); `& ~4` sem confirmação; `& ~2` com controle.
+- Tela sempre ativa: `scripts/tela-sempre-ativa.ps1` (4 perfis de energia por setup, tudo desligado, perfil Performance).
+- Dois monitores clonados: `Screen` Monitor_2 com `LayoutPos=0`, `LayoutNext=1`, `ScreenCount=2`.
+
+## 12. Parede de 6 TVs (OU TV Projetos)
+
+Ver `tv-projetos/README.md`. Resumo: `scripts/criar-ou-tv-projetos.ps1` (OU + setup sem AD + 6 monitores + app local que roda `/setup/tv/start-tv.sh`), proxy IIS na porta 8090 (`tv-projetos/iis`), imagem v5 com `nvidia_driver` e `tv-projetos/20-tv-mosaic.conf` (Base Mosaic). Atualizar arquivos no eLux: `scripts/tv-projetos-arquivos.ps1`.
+
+## 13. Validação final
 
 - `Get-Service ScoutServer,ScoutBoard,ScoutBoardDBLayer,ScoutKeepAlive,'MSSQL$SQLEXPRESS',ELIAS,MongoDB,W3SVC,'Citrix Licensing'`
 - Scout Board: login Entra → dashboard; eLux aparece na OU certa.
