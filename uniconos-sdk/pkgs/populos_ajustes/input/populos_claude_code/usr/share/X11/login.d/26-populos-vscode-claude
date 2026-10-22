@@ -1,0 +1,20 @@
+#!/bin/bash
+# POPULOS (populos_ajustes/populos_claude_code): garante no VS Code do usuário a configuração que faz a
+# extensão do Claude Code rodar pelo wrapper (a home do UniconOS não permite executar programas).
+# Script lido (source) no login: usar return, nunca exit.
+populos_vscode_claude()
+{
+    local cfg=/home/elux/.config/Code/User/settings.json
+    local chave='"claudeCode.claudeProcessWrapper"'
+    local linha='"claudeCode.claudeProcessWrapper": "/usr/bin/populos-claude-wrapper"'
+    [[ -x /usr/bin/populos-claude-wrapper ]] || return 0
+    mkdir -p "$(dirname "$cfg")"
+    if [[ ! -s $cfg ]] || grep -qE '^[[:space:]]*\{[[:space:]]*\}[[:space:]]*$' "$cfg"; then
+        printf '{\n    %s\n}\n' "$linha" > "$cfg"
+    elif ! grep -q "$chave" "$cfg"; then
+        sed -i "0,/{/s||{\n    $linha,|" "$cfg"
+    fi
+    chown -R elux "$(dirname "$cfg")" 2> /dev/null
+    return 0
+}
+populos_vscode_claude

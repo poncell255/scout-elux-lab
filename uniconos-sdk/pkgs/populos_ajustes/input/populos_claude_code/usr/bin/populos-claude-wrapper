@@ -1,0 +1,25 @@
+#!/bin/bash
+# POPULOS (populos_ajustes/populos_claude_code): roda o Claude Code da extensão do VS Code no UniconOS.
+# A extensão instala o executável em /home/elux/.vscode/extensions/..., e a home do UniconOS não permite
+# executar programas ("permission denied"). Este wrapper (claudeCode.claudeProcessWrapper) copia o executável,
+# sempre na versão que a própria extensão trouxe, para /var/lib/populos-claude (criada no boot via tmpfiles.d)
+# e o executa de lá com os mesmos argumentos.
+destino=/var/lib/populos-claude
+bin=""
+# a extensão chama o wrapper passando o caminho do executável como 1º argumento
+if [[ -n $1 && -f $1 && $(basename -- "$1") == claude ]]; then
+    bin=$1; shift
+else
+    bin=$(ls -1d /home/elux/.vscode/extensions/anthropic.claude-code-*/resources/native-binary/claude 2>/dev/null | sort -V | tail -1)
+fi
+if [[ -z $bin || ! -f $bin ]]; then
+    echo "populos-claude-wrapper: executável do Claude Code não encontrado (instale a extensão no VS Code)" >&2
+    exit 127
+fi
+mkdir -p "$destino" 2>/dev/null
+copia="$destino/claude-$(stat -c '%s-%Y' "$bin")"
+if [[ ! -x $copia ]]; then
+    rm -f "$destino"/claude-* 2>/dev/null
+    cp "$bin" "$copia.tmp" && chmod 0700 "$copia.tmp" && mv "$copia.tmp" "$copia" || { echo "populos-claude-wrapper: falha ao copiar para $destino" >&2; exit 126; }
+fi
+exec "$copia" "$@"

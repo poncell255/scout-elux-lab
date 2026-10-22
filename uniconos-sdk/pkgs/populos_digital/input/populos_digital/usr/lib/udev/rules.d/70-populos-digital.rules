@@ -1,0 +1,2 @@
+# POPULOS (populos_digital): leitor HID DigitalPersona U.are.U 4500 acessível pelo usuário da sessão (elux)
+ACTION=="add|change", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="05ba", ATTR{idProduct}=="000a", MODE="0660", OWNER="elux"

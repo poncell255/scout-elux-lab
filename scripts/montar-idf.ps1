@@ -1,4 +1,4 @@
-param([string]$Nome = 'populos-elux7', [string[]]$AddEpms = @('ica','citrix_extensions','citrix_hdxrtme','vmwareviewclient','firefox'), [string[]]$AddFpms = @('mirror_server'), [string]$Saida = 'C:\ScoutSetup\diag\idf-populos.json')
+﻿param([string]$Nome = 'populos-elux7', [string[]]$AddEpms = @('ica','citrix_extensions','citrix_hdxrtme','vmwareviewclient','firefox'), [string[]]$AddFpms = @('mirror_server'), [string]$Saida = 'C:\ScoutSetup\diag\idf-populos.json')
 # Monta uma IDF a partir da imagem oficial migration-system + pacotes extras, resolvendo dependencias.
 $epms = @((Get-Content C:\ScoutSetup\diag\elias-epms.json -Raw | ConvertFrom-Json) | ForEach-Object { $_ })
 $fpms = @((Get-Content C:\ScoutSetup\diag\elias-fpms.json -Raw | ConvertFrom-Json) | ForEach-Object { $_ })
@@ -20,7 +20,7 @@ function SelectEpm($eid, $why) {
     if (-not $selEpm.Contains($eid)) { $selEpm[$eid] = $true; $motivo[$eid] = $why
         foreach ($fid in @($epmById[$eid].fpms)) { $f = $fpmById[$fid]; if ($f -and ($f.isMandatory -or $f.isPreselected)) { $selFpm[$fid] = $true } } }
 }
-foreach ($n in $AddEpms) { $e = $epms | Where-Object name -eq $n | Select-Object -First 1; if ($e) { SelectEpm $e.id 'pedido' } else { Write-Warning "EPM nao encontrado: $n" } }
+foreach ($n in $AddEpms) { $e = $epms | Where-Object name -eq $n | Sort-Object { $v = ($_.version -replace '[^0-9.]','').Trim('.'); $r = $null; if ([version]::TryParse($v, [ref]$r)) { $r } else { [version]'0.0' } } -Descending | Select-Object -First 1; if ($e) { SelectEpm $e.id 'pedido' } else { Write-Warning "EPM nao encontrado: $n" } }
 foreach ($n in $AddFpms) { $f = $fpms | Where-Object name -eq $n | Select-Object -First 1; if ($f) { $selFpm[$f.id] = $true; $motivo[$f.id] = 'pedido'; $eid = EpmOfFpm $f.id; if ($eid) { SelectEpm $eid "contem $n" } } else { Write-Warning "FPM nao encontrado: $n" } }
 
 $naoResolvido = @{}

@@ -1,0 +1,27 @@
+#!/bin/bash
+# POPULOS (populos_digital): 2º fator por impressão digital depois do login do AD.
+# Script lido (source) pelo elux-session entre 20-userauth (que define $USER) e o desktop: usar return, nunca exit.
+# Resultado do populos-digital: 0 = liberado; 1 = digital não confirmada ou "Encerrar sessão" -> encerra a sessão.
+# Qualquer outro código (falha inesperada do programa) libera e registra, para não trancar ninguém fora.
+# Desativar sem nova imagem: criar /setup/populos-digital/DESATIVADO (pode ser entregue pelo Scout).
+populos_digital_portao()
+{
+    local auth_type rc
+    auth_type=$(ucsettingsctl -o Security -v AuthType)
+    if [[ $auth_type == 0 || -z $USER || $USER == elux ]]; then
+        echo "populos-digital: sem login de usuario (AuthType=$auth_type), portao nao se aplica"
+        return 0
+    fi
+    [[ -x /usr/bin/populos-digital ]] || return 0
+    echo "populos-digital: 2o fator para $USER"
+    DISPLAY="${DISPLAY:-:0}" /usr/bin/populos-digital portao "$USER"
+    rc=$?
+    case $rc in
+        0) echo "populos-digital: liberado" ;;
+        1) echo "populos-digital: digital nao confirmada, encerrando a sessao"
+           ucsettingsctl --run Session.Close ;;
+        *) echo "populos-digital: falha inesperada (codigo $rc), sessao liberada" ;;
+    esac
+    return 0
+}
+populos_digital_portao

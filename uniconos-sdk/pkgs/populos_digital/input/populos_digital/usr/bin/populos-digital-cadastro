@@ -1,0 +1,8 @@
+#!/bin/bash
+# POPULOS (populos_digital): atalho "Cadastrar digital" - troca a digital do usuário do AD logado.
+u="${USER:-$LOGNAME}"
+if [[ -z $u || $u == elux ]]; then
+    echo "populos-digital-cadastro: usuário do AD não encontrado na sessão" >&2
+    exit 2
+fi
+exec /usr/bin/populos-digital cadastrar "$u"

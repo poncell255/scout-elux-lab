@@ -665,6 +665,17 @@ A solução oficial da Citrix para eLux fora da rede é o **Scout Cloud Gateway*
 
 ---
 
+## Fase 18 — Pacotes próprios com o SDK (digital, VS Code nativo, ajustes)
+
+Detalhes e scripts em [`uniconos-sdk/`](../uniconos-sdk/README.md).
+
+1. Peça o **UniconOS SDK** à Unicon (o ZIP `UniconOS.<versão>.SdkDockerEnv.zip` vem por e-mail) e leia o `sdk-and-epkg-doc.html`.
+2. Ambiente: Linux com Docker (Ubuntu 22.04 para o UniconOS 2609). No Windows Server: recursos `Microsoft-Windows-Subsystem-Linux` e `VirtualMachinePlatform` (**reinicia o servidor**), MSI do WSL do GitHub da Microsoft, `wsl --install -d Ubuntu-22.04`, `docker.io`, `docker load` da imagem do `epkg`.
+3. Construa com os scripts de `uniconos-sdk/scripts/` (`populos_digital`, `populos_vscode`, `populos_ajustes`).
+4. Importe no ELIAS pela API `/import/<nome>.zip`, monte a IDF (no laboratório, `populos-elux7-v8` = v6 + os três pacotes) e aplique à OU (Deliver + Update, sem formatar).
+5. Na OU: apps "VS Code" (`/usr/bin/code --no-sandbox --password-store=basic`), "Cadastrar digital" (`/usr/bin/populos-digital-cadastro`); regra USB do Citrix só se o leitor também for usado dentro do Citrix (a sessão Citrix "pega" o leitor enquanto estiver aberta).
+6. Teste: login AD → cadastro da digital no 1º acesso → nos próximos, a digital é pedida depois do AD; 5 erros ou "Encerrar sessão" encerram a sessão; `/setup/populos-digital/DESATIVADO` desliga o portão.
+
 ## Operação e diagnóstico
 
 ### Onde olhar

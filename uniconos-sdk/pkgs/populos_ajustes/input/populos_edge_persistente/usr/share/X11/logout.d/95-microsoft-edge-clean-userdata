@@ -1,0 +1,28 @@
+#!/usr/bin/bash
+# POPULOS (populos_ajustes/populos_edge_persistente) - substitui o script do pacote microsoft_edge_stable.
+# O original apaga /home/elux/.config/microsoft-edge no logout; com a home persistente ligada essa pasta está
+# montada no armazenamento persistente (desmontada só depois, em 999-persistent-home-unmount), então o original
+# apagava os logins salvos (Outlook, Teams, OneDrive). Com PersistentHomeApplications configurado, o perfil fica.
+
+clean_edge_userdata()
+{
+    local -r edge_profile_dir="/home/elux/.config/microsoft-edge"
+    local -r edge_cache_dir="/home/elux/.cache/microsoft-edge"
+    local -r edge_tmp_dir_prefix="/tmp/.com.microsoft.Edge."
+
+    echo "Removing temporary directories '$edge_tmp_dir_prefix*'"
+    rm -rf "$edge_tmp_dir_prefix"*
+
+    if [[ -n $(ucsettingsctl -o Global -v PersistentHomeApplications 2> /dev/null) ]]; then
+        echo "Persistent home enabled: keeping edge profile '$edge_profile_dir' and cache"
+        return
+    fi
+
+    echo "Removing edge profile directory '$edge_profile_dir'"
+    rm -rf "$edge_profile_dir"
+
+    echo "Removing edge cache directory '$edge_cache_dir'"
+    rm -rf "$edge_cache_dir"
+}
+
+clean_edge_userdata
