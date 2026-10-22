@@ -2,7 +2,7 @@
 
 Repositório para **recriar do zero** um ambiente de gerenciamento de thin clients eLux 7 com Citrix/Unicon Scout Enterprise num Windows Server (começou fora de domínio e depois entrou no AD `populos.local`), com login do Scout Board via Microsoft Entra ID, imagens de firmware montadas no ELIAS 18, temas por OU, login AD nos eLux e uma parede de 6 TVs (OU "TV Projetos").
 
-> Escrito para ser seguido por uma pessoa **ou por outro agente de IA**. Comece pelo [RUNBOOK](docs/RUNBOOK.md): ele está em ordem de execução e cita os scripts deste repositório.
+> Escrito para ser seguido por uma pessoa **ou por outro agente de IA**. Para implantar do zero em outro ambiente, comece pelo **[Guia de implantação](docs/GUIA-IMPLANTACAO.md)** (completo, em fases, com validação e solução de problemas). O [RUNBOOK](docs/RUNBOOK.md) é a versão resumida.
 
 ## O que este ambiente entrega
 
@@ -22,7 +22,8 @@ Resultado validado: eLux registrado no Scout; firmware atualizado pelas imagens 
 
 ```
 README.md                        este arquivo
-docs/RUNBOOK.md                  passo a passo de recriação (comece aqui)
+docs/GUIA-IMPLANTACAO.md         guia completo de implantação do zero (comece aqui)
+docs/RUNBOOK.md                  passo a passo resumido
 docs/DB-REFERENCE.md             tabelas e códigos do banco do Scout (não documentados pela Citrix)
 docs/LICOES.md                   armadilhas encontradas e como evitar
 docs/HISTORICO.md                diário completo da implantação original (sanitizado)

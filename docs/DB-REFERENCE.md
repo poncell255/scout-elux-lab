@@ -27,6 +27,7 @@ A Citrix não documenta estas tabelas. Valores obtidos lendo o código do Scout 
 | `Setup.PowerManagementProfileType` | 0 automático, 1 Eco, 2 Performance |
 | `PowerManagementProfile` (`SetupID` × `ProfileType` 1–4 = Eco, Eco expediente, Performance, Performance expediente) | `DPMS` → DisplayOffTimerEnabled, `S3` → IdleTimerEnabled (suspender), `S3NoLogin` → IdleTimerNoLoginEnabled, `ScreenSaver` → DisplayLockTimerEnabled (bloqueio); prazos `*Delay` em segundos (5999940 = máximo); `ActionOnS3` 3 = suspender |
 | `Screen` (monitores; `ScreenSettings.ScreenCount`) | `LayoutNext` = monitor de referência (0 = o primeiro); `LayoutPos` 1 abaixo, 2 à direita, 3 à esquerda, 4 acima, **0 com LayoutNext≠0 = clone**; `Options` bit 0x1 = principal |
+| `Setup.PersistentHomeApplications` | `NULL` desligado, `'ALL'` todos os apps, ou lista separada por vírgula (home persistente) |
 | `Setup.ShowTaskbar` / `TaskbarAutoHide` | 0/1 → `terminal.ini [Layout] ShowTaskbar/TaskbarAutoHide` |
 
 ## Tabelas usadas
