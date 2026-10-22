@@ -1,6 +1,7 @@
 # Cria a OU "Populos Dev": cópia da OU Populos (apps, tema, Kerberos) com setup próprio (clone do setup 0, com AD)
 # e home persistente (Setup.PersistentHomeApplications='ALL'); adiciona VS Code (vscode.dev) e OneDrive como apps do Edge.
-param([int]$SetupOrigem = 0, [int]$OuOrigem = 4, [string]$Nome = 'Populos Dev', [string]$Icones = 'C:\ScoutSetup\icons')
+# OneDrive: use o endereço do OneDrive corporativo do tenant (<tenant>-my.sharepoint.com); microsoft365.com/onedrive dá "page doesn't exist".
+param([int]$SetupOrigem = 0, [int]$OuOrigem = 4, [string]$Nome = 'Populos Dev', [string]$Icones = 'C:\ScoutSetup\icons', [string]$OneDrive = 'https://populos-my.sharepoint.com')
 $c=Get-Content C:\ScoutSetup\credenciais.txt; $sa=(($c | Where-Object {$_ -match '^SQL sa'}) -split ' / ',2)[1].Trim()
 $m=[System.Data.SqlClient.SqlConnection]::new("Server=localhost,1433;Database=master;User ID=sa;Password=$sa;TrustServerCertificate=True"); $m.Open(); $x=$m.CreateCommand(); $x.CommandTimeout=600
 $x.CommandText="BACKUP DATABASE [ScoutEnterprise] TO DISK=N'C:\ScoutSetup\backup\ScoutEnterprise-pre-populos-dev.bak' WITH INIT, COPY_ONLY"; [void]$x.ExecuteNonQuery(); $m.Close(); "backup ok"
@@ -40,7 +41,7 @@ try {
     "  app $a -> $id" }
 
   # --- apps novos (Edge em modo app) + ícones globais ---
-  foreach($novo in @(@{Nome='VS Code';Icone='vscode';Url='https://vscode.dev'},@{Nome='OneDrive';Icone='onedrive';Url='https://www.microsoft365.com/onedrive'})){
+  foreach($novo in @(@{Nome='VS Code';Icone='vscode';Url='https://vscode.dev'},@{Nome='OneDrive';Icone='onedrive';Url=$OneDrive})){
     if((X "SELECT COUNT(*) FROM UCFT WHERE MemberType=-1 AND MemberID=-1 AND FileType=1 AND FileName=@f" @{'@f'="$($novo.Icone).png"}) -eq 0){
       $png=[IO.File]::ReadAllBytes("$Icones\$($novo.Icone).png")
       [void](X "INSERT INTO UCFT (MemberType, MemberID, FileType, FileName, FileMode, FTResult, TimeModified, FileContent) VALUES (-1,-1,1,@f,-1,0,@tm,@fc)" @{'@f'="$($novo.Icone).png";'@tm'=$now;'@fc'=$png}) }

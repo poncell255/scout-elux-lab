@@ -439,7 +439,7 @@ Modelo SQL: `scripts/sql/apps-exemplo.sql`. Ícones: PNG 32x32 em `UCFT` global 
 |---|---|---|
 | Outlook | Local (`AppTypeID 5`) | `Local.Type='CUSTOM'`, `Parameter='/usr/bin/microsoft-edge --app=https://outlook.office.com --no-first-run'` |
 | Teams | Local | idem com `https://teams.microsoft.com` |
-| OneDrive | Local | idem com `https://www.microsoft365.com/onedrive` |
+| OneDrive | Local | idem com `https://<tenant>-my.sharepoint.com` (OneDrive corporativo; leva ao OneDrive de quem logou). **Não use** `microsoft365.com/onedrive`: depois do login dá "The page you're looking for doesn't exist" |
 | VS Code | Local | idem com `https://vscode.dev`. Não existe VS Code nativo no catálogo do eLux |
 | Citrix Workspace | StoreFront (`AppTypeID 17`) | `Storefront.Stores='https://<loja>'`. Precisa dos FPMs de Self-Service na imagem. Sem loja, use local `/usr/bin/selfservice` |
 | Horizon | Omnissa (`AppTypeID 15`) | Linha em `VDA` (`Server`, `UseSSL=1`) |
