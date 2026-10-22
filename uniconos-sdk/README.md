@@ -7,6 +7,7 @@ Pacotes POPULOS montados com o **UniconOS 2609 SDK** (`epkg` em Docker), importa
 | `populos_digital` | `populos_digital_portao` | 2º fator por impressão digital depois do login do AD (leitor HID DigitalPersona U.are.U 4500). Programa em C + GTK3 + libfprint 1.94 (`pkgs/populos_digital/src/populos-digital.c`), regra udev, `tmpfiles.d` e `login.d/25-populos-digital`. |
 | `populos_vscode` | `populos_vscode_app` | VS Code oficial (`.deb` da Microsoft) sem Copilot embutido, Mermaid, code-tunnel e idiomas extras; `persistentdirs` para `.config/Code` e `.vscode`. |
 | `populos_ajustes` | `populos_edge_persistente` | Substitui `logout.d/95-microsoft-edge-clean-userdata` do pacote do Edge (`corrupts=microsoft_edge_stable`) para não apagar o perfil quando a home persistente está ligada. |
+| `populos_glpi` | `populos_glpi_agent` | GLPI Agent 1.21 (AppImage oficial extraído em `/opt/glpi-agent`, com perl próprio) + `/usr/bin/populos-glpi-inventario` + timer systemd (3 min após o boot e a cada 4 h). Lê `/setup/glpi-agent/auth` (usuário:senha do inventário, entregue pelo Scout), `server` e `tag` opcionais; o `deviceid` fica em `/setup/glpi-agent`. |
 | `populos_ajustes` | `populos_claude_code` | `populos-claude-wrapper` + `login.d/26-populos-vscode-claude`: a extensão do Claude Code roda mesmo com a home sem permissão de execução. |
 
 ## Ambiente de construção
@@ -25,6 +26,14 @@ Pacotes POPULOS montados com o **UniconOS 2609 SDK** (`epkg` em Docker), importa
 | `10-build-digital-ajustes.sh` | Monta `populos_digital` (e a 1ª versão de `populos_ajustes`) |
 | `12-build-vscode.sh` | Monta `populos_vscode` com lista explícita de arquivos |
 | `15-build-ajustes.sh <versão>` | Monta `populos_ajustes` (Edge + Claude Code) |
+| `17-build-digital.sh <versão>` | Monta `populos_digital` (modos `portao`, `entrada`, `cadastrar-local`; logo e cor por OU) |
+| `16-teste-xvfb.sh`, `18-preview.sh`, `20-preview.sh` | Prévia da tela da digital em Xvfb (use `GDK_BACKEND=x11`; o WSLg rouba a janela) |
+| `22-glpi-agent-baixar.sh <versão>` | Baixa o AppImage do GLPI Agent e extrai |
+| `24-build-glpi.sh <versão>` | Monta `populos_glpi` |
+| `23-glpi-servidor.sh`, `28-glpi-recriar.sh` | Sobe (ou recria do zero) o GLPI em Docker: `glpi/glpi` + `mysql:8.4`, porta 8080 |
+| `30-glpi-auth-inventario.sh` | Liga a autenticação Basic do inventário (senha cifrada com a chave do GLPI) |
+| `29-glpi-agent-teste.sh`, `32-glpi-computadores.sh`, `33-glpi-esperar.sh` | Testa o agente, lista os computadores, espera um eLux aparecer |
+| `27-wsl-manter-ligado.sh` | Para a tarefa agendada no boot do Windows: liga o Docker e mantém o WSL ligado |
 
 Pontos do `epkg` que custaram tempo:
 - A imagem não traz repositórios Debian (`/usr/share/unicon/suiteCPP.ini` ausente): use `.deb` baixados (`apt-get download`) em `.thirdparty`, como no exemplo da Unicon.
@@ -44,5 +53,6 @@ Pontos do `epkg` que custaram tempo:
 - Sessões rodam como usuário `elux`; `20-userauth` coloca o usuário do AD em `$USER`.
 - `ucsettingsctl --run Session.Close` encerra a sessão; `soft-logoff` só reinicia os apps.
 - A home não permite executar programas; `/setup` é persistente e do root (use `tmpfiles.d` para criar pastas do usuário).
+- A raiz do eLux instalado por pendrive ou em notebook dual-boot tem ~3,7 GB: imagens acima de ~3,6 GB falham com "image size will exceed media size" (erro 254). Por isso o `populos_vscode` (675 MB) saiu das imagens v16/v17.
 - Partições têm tamanho fixo definido na instalação (eLux instalado a partir de pendrive fica com `custom` de 3,75 GB; instalado em disco grande, dezenas de GB).
 - A próxima versão do UniconOS (7.2612, Ubuntu 26.04) exige reconstruir os pacotes com o SDK novo (`osEdition`).

@@ -1,0 +1,10 @@
+[Unit]
+Description=POPULOS - inventario no GLPI (boot + a cada 4 h)
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=4h
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

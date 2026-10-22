@@ -1,14 +1,17 @@
 /*
  * populos-digital - 2º fator por impressão digital no Citrix UniconOS (eLux 7) da POPULOS.
  *
- * Modos:
+ * Modos com login do AD (2º fator):
  *   populos-digital portao    <usuario>  login: confere a digital do usuário do AD; sem cadastro, cadastra (1º acesso)
  *   populos-digital cadastrar <usuario>  troca a digital: confere a atual (se houver) e cadastra de novo
+ * Modos sem AD (a digital é a única entrada; ligado pelo arquivo /setup/populos-digital/MODO_LOCAL):
+ *   populos-digital entrada               identifica quem é entre todas as digitais e libera; sem nenhuma, cadastra a 1ª
+ *   populos-digital cadastrar-local       confirma a digital de alguém já cadastrado e cadastra outra pessoa (nome + dedo)
  *
  * Leitor: qualquer um suportado pela libfprint 1.94 (testado para HID DigitalPersona U.are.U 4500, driver uru4000).
  * Digitais: /setup/populos-digital/<usuario>.fpr (dono elux, 0600; criado por tmpfiles.d).
  * Desativar o portão sem reinstalar: criar /setup/populos-digital/DESATIVADO (ex.: arquivo entregue pelo Scout).
- * Saída: 0 = liberado; 1 = sessão deve ser encerrada; 2 = erro de uso.
+ * Saída: 0 = liberado; 1 = sessão deve ser encerrada; 2 = erro de uso; 3 = desligar o equipamento (modo entrada).
  */
 #include <gtk/gtk.h>
 #include <fprint.h>
@@ -19,8 +22,8 @@
 #define PASTA "/setup/populos-digital"
 #define MAX_TENTATIVAS 5
 
-typedef enum { MODO_PORTAO, MODO_CADASTRAR } Modo;
-typedef enum { ETAPA_ABRINDO, ETAPA_CONFERINDO, ETAPA_CADASTRANDO, ETAPA_FIM } Etapa;
+typedef enum { MODO_PORTAO, MODO_CADASTRAR, MODO_ENTRADA, MODO_CADASTRAR_LOCAL } Modo;
+typedef enum { ETAPA_ABRINDO, ETAPA_CONFERINDO, ETAPA_IDENTIFICANDO, ETAPA_NOME, ETAPA_CADASTRANDO, ETAPA_FIM } Etapa;
 
 typedef struct {
     Modo modo;
@@ -30,19 +33,26 @@ typedef struct {
     FpContext *ctx;
     FpDevice *dev;
     FpPrint *salva;
+    GPtrArray *galeria;          /* modos sem AD: todas as digitais cadastradas */
     GCancellable *cancel;
     int tentativas;
     int resultado;
-    GtkWidget *janela, *titulo, *texto, *barra, *botao_sair;
+    GtkWidget *janela, *titulo, *texto, *barra, *botao_sair, *nome, *botao_nome;
 } App;
+
+static gboolean modo_local(const App *a) { return a->modo == MODO_ENTRADA || a->modo == MODO_CADASTRAR_LOCAL; }
+static gboolean tela_cheia(const App *a) { return a->modo == MODO_PORTAO || a->modo == MODO_ENTRADA; }
 
 static void iniciar(App *a);
 static void conferir(App *a);
 static void cadastrar(App *a);
+static void identificar(App *a);
+static void pedir_nome(App *a);
 /* para os timers (g_timeout_add precisa de função que devolva gboolean) */
 static gboolean iniciar_cb(gpointer p) { iniciar(p); return G_SOURCE_REMOVE; }
 static gboolean conferir_cb(gpointer p) { conferir(p); return G_SOURCE_REMOVE; }
 static gboolean cadastrar_cb(gpointer p) { cadastrar(p); return G_SOURCE_REMOVE; }
+static gboolean identificar_cb(gpointer p) { identificar(p); return G_SOURCE_REMOVE; }
 
 static void mensagem(App *a, const char *titulo, const char *texto)
 {
@@ -105,6 +115,35 @@ static FpPrint *carregar(App *a)
     return p;
 }
 
+/* modos sem AD: carrega todas as digitais da pasta (o nome da pessoa vai dentro da digital) */
+static GPtrArray *carregar_galeria(void)
+{
+    GPtrArray *g = g_ptr_array_new_with_free_func(g_object_unref);
+    GDir *d = g_dir_open(PASTA, 0, NULL);
+    if (!d) return g;
+    const char *n;
+    while ((n = g_dir_read_name(d))) {
+        if (!g_str_has_suffix(n, ".fpr")) continue;
+        char *caminho = g_build_filename(PASTA, n, NULL);
+        gchar *dados = NULL; gsize tam = 0;
+        if (g_file_get_contents(caminho, &dados, &tam, NULL)) {
+            FpPrint *p = fp_print_deserialize((guchar *) dados, tam, NULL);
+            if (p) {
+                if (!fp_print_get_username(p)) {      /* digital antiga sem nome: usa o nome do arquivo */
+                    char *u = g_strndup(n, strlen(n) - 4);
+                    fp_print_set_username(p, u);
+                    g_free(u);
+                }
+                g_ptr_array_add(g, p);
+            }
+            g_free(dados);
+        }
+        g_free(caminho);
+    }
+    g_dir_close(d);
+    return g;
+}
+
 static gboolean salvar(App *a, FpPrint *p, GError **e)
 {
     guchar *dados = NULL; gsize tam = 0;
@@ -148,7 +187,15 @@ static void fim_cadastro(GObject *o, GAsyncResult *r, gpointer ud)
         return;
     }
     g_object_unref(p);
-    liberar(a, "Digital cadastrada. Nas próximas entradas ela será pedida depois do login.");
+    if (a->modo == MODO_CADASTRAR_LOCAL) {
+        char *t = g_strdup_printf("Digital de %s cadastrada.", a->usuario);
+        liberar(a, t); g_free(t);
+    } else if (a->modo == MODO_ENTRADA) {
+        char *t = g_strdup_printf("Bem-vindo(a), %s! Sua digital passa a abrir este equipamento.", a->usuario);
+        liberar(a, t); g_free(t);
+    } else {
+        liberar(a, "Digital cadastrada. Nas próximas entradas ela será pedida depois do login.");
+    }
 }
 
 static void cadastrar(App *a)
@@ -209,6 +256,78 @@ static void conferir(App *a)
     fp_device_verify(a->dev, a->salva, a->cancel, NULL, NULL, NULL, fim_conferencia, a);
 }
 
+/* ---------- identificação (modos sem AD) ---------- */
+static void fim_identificacao(GObject *o, GAsyncResult *r, gpointer ud)
+{
+    App *a = ud;
+    if (a->etapa == ETAPA_FIM) return;
+    GError *e = NULL; FpPrint *achou = NULL;
+    fp_device_identify_finish(FP_DEVICE(o), r, &achou, NULL, &e);
+    if (e) {
+        char *t = g_strdup_printf("Leitura falhou (%s). Coloque o dedo de novo.", e->message);
+        mensagem(a, NULL, t); g_free(t); g_clear_error(&e);
+        g_timeout_add_seconds(1, identificar_cb, a);
+        return;
+    }
+    if (achou) {
+        const char *quem = fp_print_get_username(achou);
+        if (a->modo == MODO_CADASTRAR_LOCAL) {
+            char *t = g_strdup_printf("Autorizado por %s. Agora informe o nome da pessoa que será cadastrada.", quem ? quem : "?");
+            mensagem(a, NULL, t); g_free(t);
+            pedir_nome(a);
+        } else {
+            char *t = g_strdup_printf("Bem-vindo(a), %s!", quem ? quem : "");
+            liberar(a, t); g_free(t);
+        }
+        return;
+    }
+    a->tentativas++;
+    char *t = g_strdup_printf("Digital não reconhecida (%d). Tente de novo com um dedo cadastrado.", a->tentativas);
+    mensagem(a, NULL, t); g_free(t);
+    /* sem limite de tentativas (não há para onde voltar sem AD); pausa de 10 s a cada 5 erros */
+    g_timeout_add_seconds(a->tentativas % MAX_TENTATIVAS == 0 ? 10 : 1, identificar_cb, a);
+}
+
+static void identificar(App *a)
+{
+    if (a->etapa == ETAPA_FIM) return;
+    a->etapa = ETAPA_IDENTIFICANDO;
+    mensagem(a, a->modo == MODO_ENTRADA
+                 ? "<span size='xx-large' weight='bold'>Coloque o dedo no leitor</span>\n<span size='large'>Entrada por impressão digital</span>"
+                 : "<span size='xx-large' weight='bold'>Autorização</span>\n<span size='large'>Uma pessoa já cadastrada precisa confirmar a digital</span>",
+             a->tentativas ? NULL : "Aguardando a digital...");
+    gtk_widget_hide(a->barra);
+    fp_device_identify(a->dev, a->galeria, a->cancel, NULL, NULL, NULL, fim_identificacao, a);
+}
+
+static void confirmou_nome(GtkWidget *w, gpointer ud)
+{
+    App *a = ud;
+    (void) w;
+    const char *n = gtk_entry_get_text(GTK_ENTRY(a->nome));
+    char *limpo = g_strstrip(g_strdup(n ? n : ""));
+    if (!*limpo && a->modo == MODO_ENTRADA) {
+        /* na tela de entrada (sem gerenciador de janelas) o teclado pode não chegar ao campo: usa um nome padrão */
+        g_free(limpo); limpo = g_strdup("Administrador");
+    }
+    if (!*limpo) { g_free(limpo); mensagem(a, NULL, "Digite o nome da pessoa."); return; }
+    a->usuario = limpo;
+    g_free(a->arquivo);
+    a->arquivo = arquivo_do_usuario(limpo);
+    gtk_widget_hide(a->nome); gtk_widget_hide(a->botao_nome);
+    cadastrar(a);
+}
+
+static void pedir_nome(App *a)
+{
+    a->etapa = ETAPA_NOME;
+    mensagem(a, "<span size='xx-large' weight='bold'>Cadastro de digital</span>",
+             a->galeria->len == 0 ? "Nenhuma digital cadastrada neste equipamento. Digite o nome da primeira pessoa e clique em Continuar."
+                                  : "Digite o nome da pessoa e clique em Continuar.");
+    gtk_widget_show(a->nome); gtk_widget_show(a->botao_nome);
+    gtk_widget_grab_focus(a->nome);
+}
+
 /* ---------- leitor ---------- */
 static void leitor_aberto(GObject *o, GAsyncResult *r, gpointer ud)
 {
@@ -220,6 +339,10 @@ static void leitor_aberto(GObject *o, GAsyncResult *r, gpointer ud)
         mensagem(a, NULL, t); g_free(t); g_clear_error(&e);
         g_clear_object(&a->dev);
         g_timeout_add_seconds(3, iniciar_cb, a);
+        return;
+    }
+    if (modo_local(a)) {
+        if (a->galeria->len == 0) pedir_nome(a); else identificar(a);
         return;
     }
     if (a->salva) conferir(a); else cadastrar(a);
@@ -252,7 +375,7 @@ static void clicou_sair(GtkButton *b, gpointer ud)
 {
     App *a = ud;
     (void) b;
-    encerrar(a, a->modo == MODO_PORTAO ? 1 : 0);
+    encerrar(a, a->modo == MODO_PORTAO ? 1 : a->modo == MODO_ENTRADA ? 3 : 0);
 }
 
 static gboolean fechou_janela(GtkWidget *w, GdkEvent *ev, gpointer ud)
@@ -265,27 +388,54 @@ static gboolean fechou_janela(GtkWidget *w, GdkEvent *ev, gpointer ud)
 static GtkWidget *montar_janela(App *a)
 {
     /* No login ainda não há gerenciador de janelas: janela "popup" ocupando a tela toda, acima da tela de carregamento */
-    GtkWidget *w = gtk_window_new(a->modo == MODO_PORTAO ? GTK_WINDOW_POPUP : GTK_WINDOW_TOPLEVEL);
+    GtkWidget *w = gtk_window_new(tela_cheia(a) ? GTK_WINDOW_POPUP : GTK_WINDOW_TOPLEVEL);
     GdkRectangle g = { 0, 0, 1280, 800 };
     GdkMonitor *m = gdk_display_get_primary_monitor(gdk_display_get_default());
     if (!m) m = gdk_display_get_monitor(gdk_display_get_default(), 0);
     if (m) gdk_monitor_get_geometry(m, &g);
-    if (a->modo == MODO_PORTAO) { gtk_window_move(GTK_WINDOW(w), g.x, g.y); gtk_window_set_default_size(GTK_WINDOW(w), g.width, g.height); }
+    if (tela_cheia(a)) { gtk_window_move(GTK_WINDOW(w), g.x, g.y); gtk_window_set_default_size(GTK_WINDOW(w), g.width, g.height); }
     else { gtk_window_set_title(GTK_WINDOW(w), "Cadastrar digital"); gtk_window_set_default_size(GTK_WINDOW(w), 640, 420); gtk_window_set_position(GTK_WINDOW(w), GTK_WIN_POS_CENTER); }
     gtk_window_set_keep_above(GTK_WINDOW(w), TRUE);
 
+    /* personalização por OU (arquivos entregues pelo Scout): PASTA/cor-fundo (ex.: #0099ff) e PASTA/logo.png */
+    char *fundo = NULL;
+    if (g_file_get_contents(PASTA "/cor-fundo", &fundo, NULL, NULL)) {
+        g_strstrip(fundo);
+        if (!g_regex_match_simple("^#[0-9a-fA-F]{6}$", fundo, 0, 0)) g_clear_pointer(&fundo, g_free);
+    }
+    char *estilo = g_strdup_printf(
+        "window { background: %s; } label { color: #ffffff; } "
+        "progressbar trough { min-height: 14px; } progressbar progress { min-height: 14px; background: %s; } "
+        "button { padding: 10px 24px; } button label { color: #0f1729; } "
+        ".cartao { background: #ffffff; border-radius: 24px; padding: 24px 40px; } "
+        "image { color: #ffffff; -gtk-icon-style: symbolic; }",
+        fundo ? fundo : "#0f1729", fundo ? "#ffffff" : "#3b82f6");
     GtkCssProvider *css = gtk_css_provider_new();
-    gtk_css_provider_load_from_data(css,
-        "window { background: #0f1729; } label { color: #ffffff; } "
-        "progressbar trough { min-height: 14px; } progressbar progress { min-height: 14px; background: #3b82f6; } "
-        "button { padding: 10px 24px; }", -1, NULL);
+    gtk_css_provider_load_from_data(css, estilo, -1, NULL);
     gtk_style_context_add_provider_for_screen(gdk_screen_get_default(), GTK_STYLE_PROVIDER(css), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+    g_free(estilo); g_free(fundo);
 
     GtkWidget *caixa = gtk_box_new(GTK_ORIENTATION_VERTICAL, 24);
     gtk_widget_set_halign(caixa, GTK_ALIGN_CENTER);
     gtk_widget_set_valign(caixa, GTK_ALIGN_CENTER);
-    GtkWidget *icone = gtk_image_new_from_icon_name("fingerprint-gui", GTK_ICON_SIZE_DIALOG);
-    gtk_image_set_pixel_size(GTK_IMAGE(icone), 96);
+    GdkPixbuf *logo = gdk_pixbuf_new_from_file_at_scale(PASTA "/logo.png", 200, 200, TRUE, NULL);
+    if (logo) {
+        /* logo num cartão branco, para não sumir quando a cor da marca é igual à do fundo */
+        GtkWidget *cartao = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+        gtk_style_context_add_class(gtk_widget_get_style_context(cartao), "cartao");
+        gtk_widget_set_halign(cartao, GTK_ALIGN_CENTER);
+        gtk_box_pack_start(GTK_BOX(cartao), gtk_image_new_from_pixbuf(logo), FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(caixa), cartao, FALSE, FALSE, 0);
+        g_object_unref(logo);
+    }
+    /* ícone de digital só se o tema de ícones tiver um (senão o GTK mostra "imagem quebrada") */
+    GtkWidget *icone = NULL;
+    const char *nomes_icone[] = { "fingerprint-gui", "auth-fingerprint-symbolic", "fingerprint", NULL };
+    for (int i = 0; nomes_icone[i] && !icone; i++)
+        if (gtk_icon_theme_has_icon(gtk_icon_theme_get_default(), nomes_icone[i])) {
+            icone = gtk_image_new_from_icon_name(nomes_icone[i], GTK_ICON_SIZE_DIALOG);
+            gtk_image_set_pixel_size(GTK_IMAGE(icone), 96);
+        }
     a->titulo = gtk_label_new(NULL);
     gtk_label_set_justify(GTK_LABEL(a->titulo), GTK_JUSTIFY_CENTER);
     a->texto = gtk_label_new("Procurando o leitor...");
@@ -293,49 +443,69 @@ static GtkWidget *montar_janela(App *a)
     gtk_label_set_justify(GTK_LABEL(a->texto), GTK_JUSTIFY_CENTER);
     a->barra = gtk_progress_bar_new();
     gtk_widget_set_size_request(a->barra, 420, -1);
-    a->botao_sair = gtk_button_new_with_label(a->modo == MODO_PORTAO ? "Encerrar sessão" : "Fechar");
+    a->botao_sair = gtk_button_new_with_label(a->modo == MODO_PORTAO ? "Encerrar sessão" : a->modo == MODO_ENTRADA ? "Desligar" : "Fechar");
     gtk_widget_set_halign(a->botao_sair, GTK_ALIGN_CENTER);
     g_signal_connect(a->botao_sair, "clicked", G_CALLBACK(clicou_sair), a);
-    gtk_box_pack_start(GTK_BOX(caixa), icone, FALSE, FALSE, 0);
+    a->nome = gtk_entry_new();
+    gtk_entry_set_placeholder_text(GTK_ENTRY(a->nome), "Nome da pessoa (ex.: Maria Souza)");
+    gtk_entry_set_max_length(GTK_ENTRY(a->nome), 60);
+    gtk_widget_set_size_request(a->nome, 420, -1);
+    g_signal_connect(a->nome, "activate", G_CALLBACK(confirmou_nome), a);
+    a->botao_nome = gtk_button_new_with_label("Continuar");
+    gtk_widget_set_halign(a->botao_nome, GTK_ALIGN_CENTER);
+    g_signal_connect(a->botao_nome, "clicked", G_CALLBACK(confirmou_nome), a);
+    if (icone) gtk_box_pack_start(GTK_BOX(caixa), icone, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(caixa), a->titulo, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(caixa), a->texto, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(caixa), a->nome, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(caixa), a->botao_nome, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(caixa), a->barra, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(caixa), a->botao_sair, FALSE, FALSE, 12);
     gtk_container_add(GTK_CONTAINER(w), caixa);
-    if (a->modo == MODO_CADASTRAR) g_signal_connect(w, "delete-event", G_CALLBACK(fechou_janela), a);
+    if (!tela_cheia(a)) g_signal_connect(w, "delete-event", G_CALLBACK(fechou_janela), a);
     return w;
 }
 
 int main(int argc, char **argv)
 {
-    if (argc < 3 || (strcmp(argv[1], "portao") && strcmp(argv[1], "cadastrar"))) {
-        g_printerr("uso: %s portao|cadastrar <usuario>\n", argv[0]);
+    App a = { 0 };
+    if (argc >= 3 && !strcmp(argv[1], "portao")) a.modo = MODO_PORTAO;
+    else if (argc >= 3 && !strcmp(argv[1], "cadastrar")) a.modo = MODO_CADASTRAR;
+    else if (argc >= 2 && !strcmp(argv[1], "entrada")) a.modo = MODO_ENTRADA;
+    else if (argc >= 2 && !strcmp(argv[1], "cadastrar-local")) a.modo = MODO_CADASTRAR_LOCAL;
+    else {
+        g_printerr("uso: %s portao|cadastrar <usuario>\n       %s entrada|cadastrar-local\n", argv[0], argv[0]);
         return 2;
     }
-    App a = { 0 };
-    a.modo = strcmp(argv[1], "portao") == 0 ? MODO_PORTAO : MODO_CADASTRAR;
-    a.usuario = argv[2];
+    a.usuario = argc >= 3 ? argv[2] : "";
     a.resultado = 1;
     a.cancel = g_cancellable_new();
 
-    if (a.modo == MODO_PORTAO && g_file_test(PASTA "/DESATIVADO", G_FILE_TEST_EXISTS)) {
+    if (tela_cheia(&a) && g_file_test(PASTA "/DESATIVADO", G_FILE_TEST_EXISTS)) {
         g_print("portão desativado (%s/DESATIVADO)\n", PASTA);
         return 0;
     }
     gtk_init(&argc, &argv);
-    a.arquivo = arquivo_do_usuario(a.usuario);
-    a.salva = carregar(&a);
+    if (modo_local(&a)) {
+        a.galeria = carregar_galeria();
+        g_print("digitais cadastradas: %u\n", a.galeria->len);
+    } else {
+        a.arquivo = arquivo_do_usuario(a.usuario);
+        a.salva = carregar(&a);
+    }
     a.ctx = fp_context_new();
     a.janela = montar_janela(&a);
     gtk_widget_show_all(a.janela);
     gtk_widget_hide(a.barra);
-    if (a.modo == MODO_PORTAO) {
+    gtk_widget_hide(a.nome);
+    gtk_widget_hide(a.botao_nome);
+    if (tela_cheia(&a)) {
         /* segura teclado e mouse para a janela do portão (não há gerenciador de janelas ainda) */
         GdkSeat *seat = gdk_display_get_default_seat(gdk_display_get_default());
         gdk_seat_grab(seat, gtk_widget_get_window(a.janela), GDK_SEAT_CAPABILITY_ALL, TRUE, NULL, NULL, NULL, NULL);
     }
     iniciar(&a);
     gtk_main();
-    g_print("resultado: %d (%s)\n", a.resultado, a.arquivo);
+    g_print("resultado: %d (%s)\n", a.resultado, a.arquivo ? a.arquivo : a.usuario);
     return a.resultado;
 }

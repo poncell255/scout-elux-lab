@@ -1,0 +1,8 @@
+{
+  "name": "porto-v1",
+  "accentColor": "#0099FF",
+  "desktopBackgroundImage": { "type": "jpg", "scaling": "crop" },
+  "productImage": { "type": "png", "scaling": "contain" },
+  "brandImage": { "type": "png", "scaling": "contain" },
+  "welcomeBackgroundLayout": "none"
+}

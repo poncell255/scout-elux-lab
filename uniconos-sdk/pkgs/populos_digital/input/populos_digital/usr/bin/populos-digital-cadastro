@@ -1,8 +1,9 @@
 #!/bin/bash
-# POPULOS (populos_digital): atalho "Cadastrar digital" - troca a digital do usuário do AD logado.
+# POPULOS (populos_digital): atalho "Cadastrar digital".
+#  - Com login do AD: troca a digital do usuário do AD logado (pede a digital atual antes).
+#  - Sem AD (MODO_LOCAL): cadastra outra pessoa, depois que alguém já cadastrado confirma a digital.
 u="${USER:-$LOGNAME}"
-if [[ -z $u || $u == elux ]]; then
-    echo "populos-digital-cadastro: usuário do AD não encontrado na sessão" >&2
-    exit 2
+if [[ -f /setup/populos-digital/MODO_LOCAL || -z $u || $u == elux ]]; then
+    exec /usr/bin/populos-digital cadastrar-local
 fi
 exec /usr/bin/populos-digital cadastrar "$u"

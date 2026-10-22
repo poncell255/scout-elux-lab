@@ -24,7 +24,7 @@ ini $E $F2 summary "VS Code: rodar a extensao do Claude Code (a home nao permite
 for f in $F1 $F2; do mkdir -p $B/epm/input/$f; cp -r $SRC/populos_ajustes/input/$f/. $B/epm/input/$f/; done
 echo 'chmod 0644 %root%/usr/share/X11/logout.d/95-microsoft-edge-clean-userdata' > $B/epm/elux/$F1.postCommands
 cat > $B/epm/elux/$F2.postCommands <<'X'
-chmod 0755 %root%/usr/bin/populos-claude-wrapper
+chmod 0755 %root%/usr/bin/populos-claude-wrapper %root%/usr/bin/populos-code
 chmod 0644 %root%/usr/lib/tmpfiles.d/populos-claude.conf %root%/usr/share/X11/login.d/26-populos-vscode-claude
 X
 printf '%s\n' '#!/bin/bash' 'systemd-tmpfiles --create /usr/lib/tmpfiles.d/populos-claude.conf > /dev/null 2>&1' 'true' > $B/epm/elux/$F2.postInst

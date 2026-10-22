@@ -15,8 +15,10 @@ Repositório para **recriar do zero** um ambiente de gerenciamento de thin clien
 | ELIAS 18 | 26.3.2 | Montagem das imagens (IDF) e servidor de firmware via IIS |
 | eLux 7 | 7.2609 | Sistema dos thin clients |
 | Microsoft Entra ID | — | Login do Scout Board (OIDC) |
+| UniconOS SDK (`epkg`) | 7.2609.0-5 | Pacotes próprios (digital, ajustes, GLPI Agent) em Docker no WSL2 |
+| GLPI | 12.0.0 (Docker) + GLPI Agent 1.21 | Inventário dos eLux |
 
-Resultado validado: eLux registrado no Scout; firmware atualizado pelas imagens `populos-elux7-v4` (geral) e `populos-elux7-v5` (v4 + driver NVIDIA, OU TV Projetos); temas por OU (papel de parede e logo na tela de boot); Outlook e Teams via Edge `--app`; Citrix Workspace (StoreFront); Horizon (Omnissa); OU de quiosque; **login AD (Kerberos) nos eLux** com OUs sem AD (Populos NonDomain, Modo Kiosk, TV Projetos); NTP; **mirror pelo Scout Board** com controle e sem pedir permissão; tela sempre ativa (sem bloqueio/suspensão); 2 monitores clonados; **6 TVs** com duas NVIDIA Quadro em Base Mosaic, cada uma com uma página do PopulosHub em quiosque, login automático e recarga a cada 5 min.
+Resultado validado: eLux registrado no Scout; firmware atualizado pelas imagens `populos-elux7-v4` (geral) e `populos-elux7-v5` (v4 + driver NVIDIA, OU TV Projetos); temas por OU (papel de parede e logo na tela de boot); Outlook e Teams via Edge `--app`; Citrix Workspace (StoreFront); Horizon (Omnissa); OU de quiosque; **login AD (Kerberos) nos eLux** com OUs sem AD (Populos NonDomain, Modo Kiosk, TV Projetos); NTP; **mirror pelo Scout Board** com controle e sem pedir permissão; tela sempre ativa (sem bloqueio/suspensão); 2 monitores clonados; **6 TVs** com duas NVIDIA Quadro em Base Mosaic, cada uma com uma página do PopulosHub em quiosque, login automático e recarga a cada 5 min. Depois: OU Populos Dev (home persistente, OneDrive, digital como 2º fator); OU **Porto** sem AD, entrada só com a **impressão digital**, CXone e leitor de PDF; **Google Chrome** e **inventário no GLPI** em todas as OUs (imagens v12–v17).
 
 ## Estrutura
 

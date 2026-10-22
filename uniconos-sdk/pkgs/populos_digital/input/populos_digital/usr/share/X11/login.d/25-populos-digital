@@ -1,25 +1,39 @@
 #!/bin/bash
-# POPULOS (populos_digital): 2º fator por impressão digital depois do login do AD.
-# Script lido (source) pelo elux-session entre 20-userauth (que define $USER) e o desktop: usar return, nunca exit.
-# Resultado do populos-digital: 0 = liberado; 1 = digital não confirmada ou "Encerrar sessão" -> encerra a sessão.
+# POPULOS (populos_digital): entrada por impressão digital no UniconOS.
+#  - Com login do AD (AuthType != 0): 2º fator depois do login (modo "portao", digital do usuário do AD).
+#  - Sem AD (AuthType = 0) e com /setup/populos-digital/MODO_LOCAL (entregue pelo Scout só nas OUs desejadas):
+#    a digital é a única entrada (modo "entrada": identifica a pessoa entre as digitais cadastradas).
+# Script lido (source) pelo elux-session antes do desktop: usar return, nunca exit.
+# Resultado do populos-digital: 0 = liberado; 1 = encerrar a sessão; 3 = desligar o equipamento.
 # Qualquer outro código (falha inesperada do programa) libera e registra, para não trancar ninguém fora.
 # Desativar sem nova imagem: criar /setup/populos-digital/DESATIVADO (pode ser entregue pelo Scout).
 populos_digital_portao()
 {
-    local auth_type rc
-    auth_type=$(ucsettingsctl -o Security -v AuthType)
-    if [[ $auth_type == 0 || -z $USER || $USER == elux ]]; then
-        echo "populos-digital: sem login de usuario (AuthType=$auth_type), portao nao se aplica"
-        return 0
-    fi
+    local auth_type rc modo
     [[ -x /usr/bin/populos-digital ]] || return 0
-    echo "populos-digital: 2o fator para $USER"
-    DISPLAY="${DISPLAY:-:0}" /usr/bin/populos-digital portao "$USER"
+    auth_type=$(ucsettingsctl -o Security -v AuthType)
+    if [[ $auth_type == 0 ]]; then
+        if [[ ! -f /setup/populos-digital/MODO_LOCAL ]]; then
+            echo "populos-digital: sem login de usuario e sem MODO_LOCAL, portao nao se aplica"
+            return 0
+        fi
+        echo "populos-digital: entrada somente por digital (MODO_LOCAL)"
+        DISPLAY="${DISPLAY:-:0}" /usr/bin/populos-digital entrada
+    else
+        if [[ -z $USER || $USER == elux ]]; then
+            echo "populos-digital: usuario do AD nao encontrado, portao nao se aplica"
+            return 0
+        fi
+        echo "populos-digital: 2o fator para $USER"
+        DISPLAY="${DISPLAY:-:0}" /usr/bin/populos-digital portao "$USER"
+    fi
     rc=$?
     case $rc in
         0) echo "populos-digital: liberado" ;;
         1) echo "populos-digital: digital nao confirmada, encerrando a sessao"
            ucsettingsctl --run Session.Close ;;
+        3) echo "populos-digital: desligamento pedido na tela de entrada"
+           ucsettingsctl --run Session.Shutdown ;;
         *) echo "populos-digital: falha inesperada (codigo $rc), sessao liberada" ;;
     esac
     return 0

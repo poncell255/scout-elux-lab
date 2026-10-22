@@ -1,0 +1,18 @@
+#!/bin/bash
+# Envia o inventario deste eLux para o GLPI.
+# Arquivos entregues pelo Scout em /setup/glpi-agent (nenhum segredo fica na imagem):
+#   auth   = usuario:senha da autenticacao Basic do inventario (obrigatorio)
+#   server = URL do GLPI (opcional, padrao abaixo)
+#   tag    = etiqueta do aparelho no GLPI (opcional, padrao elux)
+SERVIDOR=http://10.5.0.166:8088/
+VAR=/setup/glpi-agent
+mkdir -p $VAR
+[ -s $VAR/server ] && SERVIDOR=$(head -n1 $VAR/server | tr -d '[:space:]')
+TAG=elux
+[ -s $VAR/tag ] && TAG=$(head -n1 $VAR/tag | tr -d '[:space:]')
+[ -s $VAR/auth ] || { echo "sem $VAR/auth: inventario nao enviado"; exit 0; }
+AUTH=$(head -n1 $VAR/auth | tr -d '\r\n')
+export GLPIAGENT_SCRIPT=glpi-agent
+exec /opt/glpi-agent/AppRun --server="$SERVIDOR" --vardir=$VAR --tag="$TAG" \
+    --user="${AUTH%%:*}" --password="${AUTH#*:}" \
+    --config=none --tasks=inventory --force --no-httpd --logger=stderr --timeout=60 "$@"

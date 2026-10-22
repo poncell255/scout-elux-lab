@@ -676,6 +676,28 @@ Detalhes e scripts em [`uniconos-sdk/`](../uniconos-sdk/README.md).
 5. Na OU: apps "VS Code" (`/usr/bin/code --no-sandbox --password-store=basic`), "Cadastrar digital" (`/usr/bin/populos-digital-cadastro`); regra USB do Citrix só se o leitor também for usado dentro do Citrix (a sessão Citrix "pega" o leitor enquanto estiver aberta).
 6. Teste: login AD → cadastro da digital no 1º acesso → nos próximos, a digital é pedida depois do AD; 5 erros ou "Encerrar sessão" encerram a sessão; `/setup/populos-digital/DESATIVADO` desliga o portão.
 
+## Fase 19 — OU só com digital, sem AD (OU "Porto")
+
+`scripts/criar-ou-porto.ps1`: clona o setup da Populos Dev num setup novo com `AuthType=0`, copia os apps e acrescenta "NICE CXone" (Edge `--app`, ícone próprio) e "Leitor de PDF" (`/usr/bin/atril`, FPM `document_viewer`).
+
+1. `populos_digital` ≥ 1.1.0: com `AuthType=0`, o `login.d/25-populos-digital` só age se existir `/setup/populos-digital/MODO_LOCAL` (FileEntry da OU) e roda o modo `entrada` (identifica contra todas as digitais de `/setup/populos-digital/*.fpr`).
+2. Marca da OU na tela do leitor (1.1.1): FileEntries `/setup/populos-digital/logo.png` e `cor-fundo` (`#RRGGBB`).
+3. Tema próprio (`publicar-tema.ps1`): papel de parede e imagem de boot.
+4. Primeiro boot sem digital: pede o nome (vazio = "Administrador") e cadastra. Novas pessoas: app "Cadastrar digital", que exige uma digital já cadastrada.
+5. Ícones dos apps web na barra de tarefas: cada app Edge com `--user-data-dir=/home/elux/.config/microsoft-edge/app-<nome>` e `--class=<NomeSemEspaço>` (com espaço a linha de comando quebra). Cada app passa a pedir login uma vez.
+
+## Fase 20 — Inventário no GLPI e Google Chrome em todas as OUs
+
+Detalhes dos scripts em [`uniconos-sdk/`](../uniconos-sdk/README.md).
+
+1. **Servidor GLPI** no mesmo Windows, em Docker no WSL: `23-glpi-servidor.sh` (imagem oficial `glpi/glpi` + `mysql:8.4`, porta 8080 no WSL, instalação automática). Gere as senhas no Windows e guarde no `credenciais.txt`; o `.env` fica em `/root/glpi` (600).
+2. Ajustes pelo console (`docker exec -u www-data glpi php bin/console`): `user:reset_password glpi`, `user:disable tech|normal|post-only`, `config:set enabled_inventory 1 --context=inventory`, `config:set url_base http://<servidor>:8088`; autenticação Basic do inventário com `30-glpi-auth-inventario.sh`.
+3. **Como Administrador** (fica permanente): `netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=8088 connectaddress=127.0.0.1 connectport=8080`, regra de firewall TCP 8088, `.wslconfig` com `vmIdleTimeout=-1` e tarefa agendada "WSL GLPI" no boot (S4U, sem limite de tempo) rodando `27-wsl-manter-ligado.sh`.
+4. **Agente no eLux**: pacote `populos_glpi` (`22-glpi-agent-baixar.sh` + `24-build-glpi.sh`), importado no ELIAS. A senha do inventário vai por FileEntry `/setup/glpi-agent/auth` (`usuario:senha`) em todas as OUs, nunca na imagem.
+5. **Chrome**: EPM oficial `google_chrome` do catálogo; app local `CUSTOM` `/usr/bin/google-chrome --no-first-run --no-default-browser-check <página>` com ícone `chrome` em todas as OUs (`scripts/chrome-glpi-todas-ous.ps1`).
+6. Imagens: `scripts/imagem-derivada.ps1 -De <imagem antiga> -Nome <nova> -MaisEpms google_chrome,populos_glpi [-MenosEpms ...] -Publicar` mantém a lista anterior e acrescenta/retira pacotes. **Confira o tamanho**: eLux com raiz de 3,7 GB não aceita imagem acima de ~3,6 GB.
+7. Teste: Deliver + Update + reiniciar; de 3 a 8 min depois do boot o eLux aparece em Ativos → Computadores com a etiqueta `elux` (`32-glpi-computadores.sh`).
+
 ## Operação e diagnóstico
 
 ### Onde olhar
@@ -708,6 +730,11 @@ Detalhes e scripts em [`uniconos-sdk/`](../uniconos-sdk/README.md).
 | Tema não muda | Cache do eLux | Nome de tema novo |
 | eLux perdeu o papel de parede | Passou por OU sem tema | Tema em toda OU; atualizar `TimeModified` |
 | Atualização falha com 257/259 | Imagem grande demais ou partição `custom` apagada | Imagem < 3 GB; `FormatBeforeUpdate=0`; Deliver software com imagem completa |
+| "image size will exceed media size" (254) | Imagem maior que a raiz do eLux (3,7 GB em pendrive/dual-boot) | Tirar pacotes grandes (`imagem-derivada.ps1 -MenosEpms`) ou reinstalar com partições maiores |
+| Update: "Could not unseal alternate partition set" | eLux dual-boot com partição criptografada no TPM | Reinstalar o eLux (de preferência sem dual-boot) |
+| eLux não aparece no GLPI | WSL desligado, porta 8088 fechada ou sem `/setup/glpi-agent/auth` | Tarefa "WSL GLPI", portproxy + firewall, FileEntry na OU; `journalctl -u populos-glpi-inventario` no diagnóstico |
+| GLPI: 503 "invalid inventory authentication setting" | GLPI 12 sem modo de autenticação do inventário | `30-glpi-auth-inventario.sh` |
+| Teams/Outlook com ícone do Edge na barra | Todos os apps Edge na mesma classe de janela | `--user-data-dir` e `--class` próprios por app |
 | Tela de boot parada por muitos minutos | Instalação offline da imagem no boot | Esperar (até ~20 min); `UpdateInfo` 261 → 0 |
 | Citrix Workspace não abre | Faltam FPMs de Self-Service ou a URL da loja | Incluir FPMs; preencher `Storefront.Stores` |
 | Login AD: "unknown error" | Hora (eLux ou DC), ou KDC não encontrado | Fase 11 inteira |
@@ -753,7 +780,9 @@ Detalhes e scripts em [`uniconos-sdk/`](../uniconos-sdk/README.md).
 | Imagem nova não chega às OUs com setup próprio | Por desenho | Atualizar `ImageFile` em todos os setups ao trocar de imagem |
 | Home persistente em partição pequena | A validar | Monitorar; arquivos no OneDrive |
 | Scout Agent for Windows | Sem link de download na Citrix | Pedir ao suporte se for gerenciar PCs Windows |
-| GLPI | Sem agente para eLux | Integrar exportando os dados de `Device` do Scout para o inventário nativo do GLPI |
+| GLPI | Funcionando (Fase 20) no WSL do próprio servidor | Para produção, servidor próprio e HTTPS; o agente aceita `/setup/glpi-agent/server` |
+| eLux dual-boot com TPM (Notebook-Wagner) | Não aceita imagem nova enquanto a chave estiver selada para o Windows | Reinstalar sem dual-boot; com partições maiores volta o VS Code nativo |
+| Portable01 (TV) com Chrome | Partição `custom` de 2,1 GB, a testar | Se falhar, imagem da TV sem `google_chrome` |
 
 ---
 
@@ -775,5 +804,9 @@ Detalhes e scripts em [`uniconos-sdk/`](../uniconos-sdk/README.md).
 | `scripts/criar-ou-tv-projetos.ps1` | 16 | Cria a OU da parede de TVs |
 | `scripts/tv-projetos-arquivos.ps1` | 16 | Reentrega `start-tv.sh` e a configuração do Xorg |
 | `scripts/criar-ou-populos-dev.ps1` | 15 | OU com home persistente, VS Code e OneDrive |
+| `scripts/edge-todas-ous.ps1` | 10 | App Microsoft Edge em todas as OUs |
+| `scripts/criar-ou-porto.ps1` | 19 | OU só com digital, sem AD, com CXone e leitor de PDF |
+| `scripts/imagem-derivada.ps1` | 20 | Imagem nova a partir de outra, com pacotes a mais ou a menos |
+| `scripts/chrome-glpi-todas-ous.ps1` | 20 | Chrome, senha do GLPI e imagens novas em todas as OUs |
 | `scripts/sql/desfazer-*.sql` | — | Desfazer temas/apps e AD/NonDomain |
 | `scripts/verificar-segredos.ps1` | — | Rode antes de todo `git push` |
