@@ -4,9 +4,10 @@ Pacotes POPULOS montados com o **UniconOS 2609 SDK** (`epkg` em Docker), importa
 
 | EPM | FPM | Função |
 |---|---|---|
-| `populos_digital` | `populos_digital_portao` | 2º fator por impressão digital depois do login do AD (leitor HID DigitalPersona U.are.U 4500). Programa em C + GTK3 + libfprint 1.94 (`pkgs/populos_digital/src/populos-digital.c`), regra udev, `tmpfiles.d` e `login.d/25-populos-digital`. |
+| `populos_digital` | `populos_digital_portao` | Modos: 2º fator depois do AD (`portao`), entrada só com a digital (`entrada`, OU Porto) e sala de provas (`prova <pasta>`, 1.2.1). 2º fator por impressão digital depois do login do AD (leitor HID DigitalPersona U.are.U 4500). Programa em C + GTK3 + libfprint 1.94 (`pkgs/populos_digital/src/populos-digital.c`), regra udev, `tmpfiles.d` e `login.d/25-populos-digital`. |
 | `populos_vscode` | `populos_vscode_app` | VS Code oficial (`.deb` da Microsoft) sem Copilot embutido, Mermaid, code-tunnel e idiomas extras; `persistentdirs` para `.config/Code` e `.vscode`. |
 | `populos_ajustes` | `populos_edge_persistente` | Substitui `logout.d/95-microsoft-edge-clean-userdata` do pacote do Edge (`corrupts=microsoft_edge_stable`) para não apagar o perfil quando a home persistente está ligada. |
+| `populos_teams` | `populos_teams_app` | Teams for Linux (comunitário, não oficial) em `/opt/teams-for-linux`, enxugado para 274 MB. |
 | `populos_glpi` | `populos_glpi_agent` | GLPI Agent 1.21 (AppImage oficial extraído em `/opt/glpi-agent`, com perl próprio) + `/usr/bin/populos-glpi-inventario` + timer systemd (3 min após o boot e a cada 4 h). Lê `/setup/glpi-agent/auth` (usuário:senha do inventário, entregue pelo Scout), `server` e `tag` opcionais; o `deviceid` fica em `/setup/glpi-agent`. |
 | `populos_ajustes` | `populos_claude_code` | `populos-claude-wrapper` + `login.d/26-populos-vscode-claude`: a extensão do Claude Code roda mesmo com a home sem permissão de execução. |
 
@@ -26,13 +27,16 @@ Pacotes POPULOS montados com o **UniconOS 2609 SDK** (`epkg` em Docker), importa
 | `10-build-digital-ajustes.sh` | Monta `populos_digital` (e a 1ª versão de `populos_ajustes`) |
 | `12-build-vscode.sh` | Monta `populos_vscode` com lista explícita de arquivos |
 | `15-build-ajustes.sh <versão>` | Monta `populos_ajustes` (Edge + Claude Code) |
-| `17-build-digital.sh <versão>` | Monta `populos_digital` (modos `portao`, `entrada`, `cadastrar-local`; logo e cor por OU) |
+| `17-build-digital.sh <versão>` | Compila e monta `populos_digital` (modos `portao`, `entrada`, `cadastrar-local`; logo e cor por OU) |
 | `16-teste-xvfb.sh`, `18-preview.sh`, `20-preview.sh` | Prévia da tela da digital em Xvfb (use `GDK_BACKEND=x11`; o WSLg rouba a janela) |
 | `22-glpi-agent-baixar.sh <versão>` | Baixa o AppImage do GLPI Agent e extrai |
 | `24-build-glpi.sh <versão>` | Monta `populos_glpi` |
 | `23-glpi-servidor.sh`, `28-glpi-recriar.sh` | Sobe (ou recria do zero) o GLPI em Docker: `glpi/glpi` + `mysql:8.4`, porta 8080 |
 | `30-glpi-auth-inventario.sh` | Liga a autenticação Basic do inventário (senha cifrada com a chave do GLPI) |
 | `29-glpi-agent-teste.sh`, `32-glpi-computadores.sh`, `33-glpi-esperar.sh` | Testa o agente, lista os computadores, espera um eLux aparecer |
+| `36-teams-baixar.sh`, `37-teams-enxugar.sh`, `38-teams-faltantes.sh`, `40-build-teams.sh` | Teams for Linux: baixa, enxuga, confere bibliotecas e monta |
+| `41-provas-compilar-cli.sh`, `42-provas-servidor.sh`, `43-provas-teste-digital.sh`, `44-provas-digitais.sh` | Sala de provas: utilitários de digital, site em Docker, teste de identificação, lista as digitais |
+| `34-ferramentas-docs.sh`, `35-gerar-manual.sh` | Manual em Word/PDF (pandoc + LibreOffice) |
 | `27-wsl-manter-ligado.sh` | Para a tarefa agendada no boot do Windows: liga o Docker e mantém o WSL ligado |
 
 Pontos do `epkg` que custaram tempo:

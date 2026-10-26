@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prova</title>
+<link rel="stylesheet" href="/provas/static/estilo.css">
+</head>
+<body>
+<div class="topo">
+  <div class="marca">POPULOS <span>Provas</span></div>
+  <div class="info"><div>Candidato<b id="t-aluno">…</b></div><div>Prova<b id="t-prova">…</b></div><div id="t-questao-box" hidden>Questão<b id="t-questao">…</b></div></div>
+  <div class="relogio" id="relogio" hidden>60:00</div>
+</div>
+<main id="tela"></main>
+
+<script>
+const BASE = location.pathname.replace(/\/$/, '');
+let D = null, atual = 0, desvio = 0, timer = null, finalizando = false;
+const $ = s => document.querySelector(s);
+const esc = t => String(t).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const letras = 'ABCDEFGH';
+
+async function api(caminho, corpo) {
+  const r = await fetch(BASE + caminho, corpo === undefined ? {} :
+    { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(corpo) });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+async function carregar() {
+  D = await api('/dados');
+  desvio = D.agora * 1000 - Date.now();
+  $('#t-aluno').textContent = D.aluno;
+  $('#t-prova').textContent = D.sigla;
+  document.title = D.titulo;
+  if (D.estado === 'aberta') telaInicio();
+  else if (D.estado === 'andamento') { iniciarRelogio(); telaQuestao(); }
+  else telaResultado(D.resultado);
+}
+
+/* ---------- instruções ---------- */
+function telaInicio() {
+  $('#tela').innerHTML = `
+  <div class="centro">
+    <h1>${esc(D.titulo)}</h1>
+    <p>Olá, <b>${esc(D.aluno)}</b>. Leia as instruções antes de começar.</p>
+    <div class="dados-prova">
+      <div>Questões<b>${D.total}</b></div><div>Tempo<b>${D.minutos} min</b></div><div>Aprovação<b>${D.aprovacao}%</b></div>
+    </div>
+    <ul class="regras">
+      <li>O tempo começa a contar quando você clicar em <b>Iniciar prova</b> e não pode ser pausado.</li>
+      <li>Algumas questões pedem mais de uma resposta: o enunciado indica quantas escolher.</li>
+      <li>Use <b>Marcar para revisão</b> para voltar depois às questões em dúvida.</li>
+      <li>Suas respostas são salvas na hora. Se o equipamento reiniciar, coloque a digital de novo para continuar de onde parou.</li>
+      <li>Ao terminar o tempo, a prova é finalizada e corrigida automaticamente.</li>
+    </ul>
+    <p style="text-align:right"><button class="primario" id="b-iniciar">Iniciar prova</button></p>
+  </div>`;
+  $('#b-iniciar').onclick = async () => { $('#b-iniciar').disabled = true; await api('/iniciar', {}); await carregar(); };
+}
+
+/* ---------- relógio ---------- */
+function restante() { return Math.max(0, Math.floor((D.termina * 1000 - (Date.now() + desvio)) / 1000)); }
+function iniciarRelogio() {
+  const r = $('#relogio'); r.hidden = false;
+  clearInterval(timer);
+  const tique = () => {
+    const s = restante(), m = Math.floor(s / 60);
+    r.textContent = String(m).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+    r.className = 'relogio' + (s <= 60 ? ' critico' : s <= 600 ? ' alerta' : '');
+    if (s <= 0) { clearInterval(timer); finalizar(true); }
+  };
+  tique(); timer = setInterval(tique, 1000);
+}
+
+/* ---------- questão ---------- */
+function respondida(n) { return (D.respostas[n] || []).length > 0; }
+function telaQuestao() {
+  $('#t-questao-box').hidden = false;
+  $('#t-questao').textContent = `${atual + 1} de ${D.questoes.length}`;
+  const q = D.questoes[atual], sel = D.respostas[atual] || [], marc = D.marcadas.includes(atual);
+  const multipla = q.escolher > 1;
+  $('#tela').innerHTML = `
+  <div class="prova">
+    <section class="questao">
+      <div class="num"><span>Questão ${atual + 1} de ${D.questoes.length}</span><span>${esc(q.d)}</span></div>
+      <div class="enunciado">${esc(q.q)}</div>
+      <div class="escolha">${multipla ? `Escolha ${q.escolher} respostas.` : 'Escolha 1 resposta.'}</div>
+      ${q.o.map((t, i) => `<div class="opcao ${sel.includes(i) ? 'sel' : ''}" data-i="${i}">
+         <span class="letra">${letras[i]}</span><span>${esc(t)}</span></div>`).join('')}
+    </section>
+    <aside class="lateral">
+      <h3>Questões</h3>
+      <div class="grade">${D.questoes.map((_, n) => `<button data-n="${n}" class="${respondida(n) ? 'resp' : ''} ${n === atual ? 'atual' : ''} ${D.marcadas.includes(n) ? 'marc' : ''}">${n + 1}</button>`).join('')}</div>
+      <div class="legenda"><i style="background:var(--azul)"></i>Respondida<br><i></i>Sem resposta<br>
+        <i style="background:var(--amarelo)"></i>Marcada para revisão<br>
+        Respondidas: <b>${D.questoes.filter((_, n) => respondida(n)).length}</b> de ${D.questoes.length}</div>
+    </aside>
+  </div>
+  <div class="rodape">
+    <button id="b-ant" ${atual === 0 ? 'disabled' : ''}>◀ Anterior</button>
+    <button id="b-marc" class="marcar ${marc ? 'ativo' : ''}">${marc ? '★ Marcada para revisão' : '☆ Marcar para revisão'}</button>
+    <span class="esp"></span>
+    <button id="b-rev">Revisar</button>
+    ${atual < D.questoes.length - 1 ? '<button id="b-prox" class="primario">Próxima ▶</button>' : '<button id="b-fim" class="primario">Ir para a revisão ▶</button>'}
+  </div>`;
+  document.querySelectorAll('.opcao').forEach(el => el.onclick = () => escolher(+el.dataset.i, multipla, q.escolher));
+  document.querySelectorAll('.grade button').forEach(b => b.onclick = () => { atual = +b.dataset.n; telaQuestao(); });
+  $('#b-ant').onclick = () => { atual--; telaQuestao(); };
+  $('#b-marc').onclick = () => { const m = !D.marcadas.includes(atual);
+    D.marcadas = m ? [...D.marcadas, atual] : D.marcadas.filter(x => x !== atual);
+    salvar({n: atual, marcada: m}); telaQuestao(); };
+  $('#b-rev').onclick = telaRevisao;
+  if ($('#b-prox')) $('#b-prox').onclick = () => { atual++; telaQuestao(); };
+  if ($('#b-fim')) $('#b-fim').onclick = telaRevisao;
+}
+
+function escolher(i, multipla, limite) {
+  let sel = D.respostas[atual] || [];
+  if (!multipla) sel = [i];
+  else if (sel.includes(i)) sel = sel.filter(x => x !== i);
+  else { if (sel.length >= limite) sel = sel.slice(1); sel = [...sel, i]; }
+  D.respostas[atual] = sel;
+  salvar({n: atual, r: sel});
+  telaQuestao();
+}
+
+let fila = Promise.resolve();
+function salvar(corpo) {
+  fila = fila.then(() => api('/responder', corpo)).catch(() => {
+    alert('Não foi possível salvar a resposta. Verifique a rede e responda de novo.');
+  });
+}
+
+/* ---------- revisão ---------- */
+function telaRevisao() {
+  const pend = D.questoes.map((_, n) => n).filter(n => !respondida(n));
+  $('#tela').innerHTML = `
+  <div class="centro">
+    <h1>Revisão</h1>
+    <p>Respondidas: <b>${D.questoes.length - pend.length}</b> de ${D.questoes.length}.
+       ${pend.length ? `<span style="color:var(--vermelho)">${pend.length} sem resposta (em vermelho).</span>` : 'Todas respondidas.'}
+       Marcadas para revisão: <b>${D.marcadas.length}</b>.</p>
+    <div class="lista-rev">${D.questoes.map((_, n) => `<button data-n="${n}" class="${pend.includes(n) ? 'pend' : ''}">${n + 1}${D.marcadas.includes(n) ? ' ★' : ''}</button>`).join('')}</div>
+    <div class="aviso">Depois de finalizar, não será possível alterar as respostas.</div>
+    <p style="display:flex;justify-content:space-between">
+      <button id="b-voltar">◀ Voltar à prova</button>
+      <button class="primario" id="b-finalizar">Finalizar prova</button></p>
+  </div>`;
+  document.querySelectorAll('.lista-rev button').forEach(b => b.onclick = () => { atual = +b.dataset.n; telaQuestao(); });
+  $('#b-voltar').onclick = telaQuestao;
+  $('#b-finalizar').onclick = () => {
+    const msg = pend.length ? `Você deixou ${pend.length} questão(ões) sem resposta. Finalizar mesmo assim?` : 'Finalizar a prova agora?';
+    if (confirm(msg)) finalizar(false);
+  };
+}
+
+/* ---------- resultado ---------- */
+async function finalizar(porTempo) {
+  if (finalizando) return; finalizando = true;
+  clearInterval(timer);
+  await fila;
+  const r = await api('/finalizar', {});
+  telaResultado(r, porTempo);
+}
+
+function telaResultado(r, porTempo) {
+  $('#relogio').hidden = true; $('#t-questao-box').hidden = true;
+  const ok = r.aprovado, dur = r.inicio && r.fim ? Math.round((r.fim - r.inicio) / 60) : null;
+  $('#tela').innerHTML = `
+  <div class="centro" style="text-align:center">
+    ${porTempo ? '<div class="aviso">O tempo terminou e a prova foi finalizada automaticamente.</div>' : ''}
+    <h1>${esc(D.titulo)}</h1>
+    <p>${esc(D.aluno)}</p>
+    <div class="nota ${ok ? 'ok' : 'nok'}">${r.nota}%</div>
+    <span class="selo ${ok ? 'ok' : 'nok'}">${ok ? 'APROVADO' : 'NÃO APROVADO'}</span>
+    <p>${r.acertos} acertos de ${r.total} questões · nota mínima ${r.aprovacao}%${dur !== null ? ` · tempo usado: ${dur} min` : ''}</p>
+    <div style="text-align:left;margin-top:28px"><h3>Desempenho por assunto</h3>
+      ${Object.entries(r.dominios).map(([d, [a, t]]) => `<div class="dominio">${esc(d)} — ${a} de ${t}
+        <div class="barra"><div style="width:${Math.round(100 * a / t)}%"></div></div></div>`).join('')}
+    </div>
+    <p style="margin-top:28px"><button class="primario" id="b-sair">Encerrar</button></p>
+  </div>`;
+  $('#b-sair').onclick = async () => {
+    $('#b-sair').disabled = true;
+    await fetch(BASE + '/sair', {method: 'POST'});
+    $('#tela').innerHTML = '<div class="centro" style="text-align:center"><h1>Prova encerrada</h1><p>Obrigado. Pode se retirar.</p></div>';
+  };
+}
+
+document.addEventListener('contextmenu', e => e.preventDefault());
+carregar().catch(e => { $('#tela').innerHTML = `<div class="centro"><h1>Prova indisponível</h1><p>${esc(e.message)}</p></div>`; });
+</script>
+</body>
+</html>

@@ -698,6 +698,110 @@ Detalhes dos scripts em [`uniconos-sdk/`](../uniconos-sdk/README.md).
 6. Imagens: `scripts/imagem-derivada.ps1 -De <imagem antiga> -Nome <nova> -MaisEpms google_chrome,populos_glpi [-MenosEpms ...] -Publicar` mantém a lista anterior e acrescenta/retira pacotes. **Confira o tamanho**: eLux com raiz de 3,7 GB não aceita imagem acima de ~3,6 GB.
 7. Teste: Deliver + Update + reiniciar; de 3 a 8 min depois do boot o eLux aparece em Ativos → Computadores com a etiqueta `elux` (`32-glpi-computadores.sh`).
 
+## Fase 21 — uberAgent enviando para dois servidores
+
+Objetivo: todos os eLux enviam métricas e eventos do uberAgent **ao mesmo tempo** para dois servidores independentes, compatíveis com o Splunk HTTP Event Collector (HEC).
+
+| | Servidor A | Servidor B |
+|---|---|---|
+| Nome no `uberAgent.conf` | PopulosUXM | PopulosAnalytics |
+| Endereço | `http://10.30.0.99:3001` | `http://10.5.1.4:3001` |
+| Aplicação | Populos uberAgent UXM (produção) | Populos Analytics |
+| Token | `uberAgent HEC 10.30.0.99` no `credenciais.txt` | `uberAgent HEC 10.5.1.4` no `credenciais.txt` (valor de `HEC_TOKEN` em `C:\Program Files\Populos Analytics\app\.env` nessa máquina) |
+
+### 21.1 Testar os receptores antes
+
+Da rede dos eLux (ou do servidor Scout):
+```powershell
+curl.exe -s http://10.30.0.99:3001/services/collector/health   # {"text":"HEC is healthy","code":17}
+curl.exe -s http://10.5.1.4:3001/services/collector/health
+# token: 200 = aceito, 401 = token errado
+curl.exe -s -H "Authorization: Splunk <TOKEN>" -d '{"time":0,"host":"TESTE-UNICON","sourcetype":"uberAgent:Test:Probe","event":{"ok":1}}' http://<servidor>:3001/services/collector/event
+```
+No projeto, o token do servidor B que constava na documentação estava errado (401); o valor certo foi lido do `.env` do servidor. O teste grava um evento com o host `TESTE-UNICON`.
+
+### 21.2 Pacote
+
+O agente **não precisa ser empacotado**: o catálogo do ELIAS já tem o EPM oficial `uberagent` 8.0.7535 (FPM `uberagent_base`, 34 MB, serviço `uberAgent.service`). No UniconOS a licença vem do próprio sistema: **não** distribua `uberAgent.lic` nem `provisiontoken.blob`.
+
+Imagens derivadas com o pacote:
+```powershell
+.\scripts\imagem-derivada.ps1 -De v12 -Nome populos-elux7-v18 -MaisEpms uberagent -Publicar
+.\scripts\imagem-derivada.ps1 -De v13 -Nome populos-elux7-v19 -MaisEpms uberagent -Publicar   # TV
+.\scripts\imagem-derivada.ps1 -De v16 -Nome populos-elux7-v20 -MaisEpms uberagent -Publicar   # Porto
+.\scripts\imagem-derivada.ps1 -De v17 -Nome populos-elux7-v21 -MaisEpms uberagent -Publicar   # Populos Dev
+```
+
+### 21.3 Configuração
+
+No eLux, o uberAgent lê a configuração em **`/setup/uberAgent/`**; os arquivos são entregues pelo Scout, já descompactados (documentação Citrix: *uberAgent → Configuration through config file*).
+
+1. Baixe o pacote de configuração do servidor A (`config.tar.gz`, endereço interno) e extraia em `C:\ScoutSetup\uberagent\base\x\` com `tar -xzf`.
+2. Grave os tokens no `credenciais.txt`:
+   ```
+   uberAgent HEC 10.30.0.99 / <token do servidor A>
+   uberAgent HEC 10.5.1.4 / <token do servidor B>
+   ```
+3. Rode `scripts\uberagent-todas-ous.ps1`. Ele:
+   - copia os 31 arquivos `.conf` (sem os de licença);
+   - troca a seção `[Receiver]` (só as linhas reais, na coluna 1; o exemplo tem `[Receiver]` dentro de comentários) por **duas** seções, uma por servidor:
+     ```ini
+     [Receiver]
+     Name = PopulosUXM
+     Type = Splunk
+     Protocol = HTTP
+     Servers = http://10.30.0.99:3001
+     RESTToken = <token A>
+
+     [Receiver]
+     Name = PopulosAnalytics
+     Type = Splunk
+     Protocol = HTTP
+     Servers = http://10.5.1.4:3001
+     RESTToken = <token B>
+     ```
+   - faz backup do banco e grava os arquivos como FileEntry `/setup/uberAgent/<arquivo>` em **todas** as OUs;
+   - troca a imagem dos setups e marca os dispositivos para atualizar.
+   Com `-SoMontar`, só gera os arquivos em `C:\ScoutSetup\uberagent\elux\` (essa pasta contém os tokens: não a coloque no Git).
+
+Regras do `uberAgent.conf`:
+- **Uma seção `[Receiver]` por servidor.** Dois endereços no mesmo `Servers =` fazem balanceamento/failover: cada evento vai para um só.
+- Os nomes (`Name =`) precisam ser diferentes: cada receptor tem a própria fila persistente (`/setup/uberAgent/OutputQueue`).
+- Se algum timer usar `Receivers =`, inclua os dois nomes.
+
+### 21.4 Aplicar e validar
+
+1. Em cada eLux: **Deliver software** → **Update software** → reiniciar. A configuração chega antes ("config em dia"), mas o programa só entra com a imagem.
+2. No diagnóstico do eLux, `/var/log/uberAgent/uberAgent.log` deve ter:
+   - `Initializing receiver(s)...` com **dois** receptores;
+   - nenhuma linha `Unknown value in line <...>` (receptor fora de seção);
+   - nenhum `failed with (code: 401)` (token errado) nem erro de conexão.
+3. Em alguns minutos o aparelho aparece nos dois painéis (`https://10.30.0.99:3001` e `https://10.5.1.4:3001`, certificado autoassinado).
+
+> **Atenção ao servidor B:** o IP 10.5.1.4 é o mesmo do Notebook-Wagner quando ele roda o eLux; o servidor B é o lado Windows desse notebook dual-boot. Com o notebook no eLux, o servidor B fica fora do ar e os eLux guardam os eventos na fila até ele voltar. Para produção, coloque o servidor B numa máquina sempre ligada com IP fixo e rode o script de novo com o endereço novo (`-Receptores`).
+
+
+## Fase 22 — Teams for Linux (cliente comunitário) nas OUs
+
+Não existe Microsoft Teams oficial para Linux (cliente encerrado em 2022). Foi usado o **teams-for-linux** (github.com/IsmaelMartinez/teams-for-linux, GPL-3.0, **não oficial**), empacotado pelo SDK.
+
+1. `36-teams-baixar.sh` baixa o `.deb` mais novo; `37-teams-enxugar.sh` deixa só pt-BR/pt-PT/en-US e compacta a licença (302 → 274 MB); `38-teams-faltantes.sh` confere as bibliotecas contra a lista de arquivos da imagem (gerada do catálogo do ELIAS).
+2. `40-build-teams.sh <versão>` gera `populos_teams` (FPM `populos_teams_app`): `/opt/teams-for-linux`, `/usr/bin/teams-for-linux`, `chrome-sandbox` 4755.
+3. Imagens com `imagem-derivada.ps1 -MaisEpms populos_teams` e app local "Microsoft Teams" (`/usr/bin/teams-for-linux`, ícone `teams`) com `scripts/teams-todas-ous.ps1` (exceto a OU TV). O app web passa a se chamar "Teams (web)".
+4. **Espaço:** as imagens ficam com ~3.630 MB, perto do limite de 3.700 MB dos eLux de pendrive/dual-boot.
+
+## Fase 23 — Sala de provas com digital (OU "Provas")
+
+Objetivo: o aluno coloca a digital no eLux e a prova dele abre em quiosque, com nome, tempo de 60 min e nota no fim. As digitais são cadastradas antes, num site no servidor. Código em [`provas/`](../provas/README.md).
+
+1. **Leitor do servidor no WSL** (para o cadastro): instale o usbipd-win; `usbipd bind --busid <id>` (uma vez) e `usbipd attach --wsl --busid <id>` (a cada reinício do servidor/WSL).
+2. **Site:** `42-provas-servidor.sh` monta o container `populos-provas` (Ubuntu 22.04 + Flask/waitress + libfprint 1.94.3, a mesma do eLux) na porta 3100, com o USB e os dados em `/root/provas/data`. Senhas no `credenciais.txt`: "Provas admin" e "Provas chave dos eLux" (gravadas em `/root/provas/.env`).
+3. **Publicação no IIS sem porta nova:** diretório virtual `provas` no Default Web Site com `web.config` reescrevendo para `http://localhost:3100/provas/`.
+4. **Cadastro:** `/provas/admin` → nome + prova → "Capturar digital" (5 leituras; grava `<id>.fpr` com o id e o nome dentro).
+5. **eLux:** `populos_digital` ≥ 1.2.1 (modo `prova <pasta>`), imagem sem o Teams (v26). `scripts/criar-ou-provas.ps1` cria a OU (setup sem AD, sem home persistente, sem barra de tarefas, `UseParentApps=0`), o app "Prova" (`/bin/bash /setup/provas/prova.sh`, AutoStart+TM, **`AppOnDesktop=1`**) e entrega `prova.sh`, `chave` e `servidor` em `/setup/provas/`.
+6. **Ciclo no eLux** (`prova.sh`): baixa as digitais dos alunos com prova pendente → identifica → pede o token da prova ao site → Edge `--kiosk` → reabre se fechado → volta à digital quando o aluno clica "Encerrar" (ou 2 min após o resultado). Log em `/tmp/provas.log`.
+7. **Cada equipamento da sala precisa do próprio leitor USB.**
+8. Teste no servidor antes do eLux: `43-provas-teste-digital.sh` (identificação em Xvfb com a galeria do site).
 ## Operação e diagnóstico
 
 ### Onde olhar
@@ -732,6 +836,7 @@ Detalhes dos scripts em [`uniconos-sdk/`](../uniconos-sdk/README.md).
 | Atualização falha com 257/259 | Imagem grande demais ou partição `custom` apagada | Imagem < 3 GB; `FormatBeforeUpdate=0`; Deliver software com imagem completa |
 | "image size will exceed media size" (254) | Imagem maior que a raiz do eLux (3,7 GB em pendrive/dual-boot) | Tirar pacotes grandes (`imagem-derivada.ps1 -MenosEpms`) ou reinstalar com partições maiores |
 | Update: "Could not unseal alternate partition set" | eLux dual-boot com partição criptografada no TPM | Reinstalar o eLux (de preferência sem dual-boot) |
+| Sala de provas abre só o papel de parede | App com `AppOnDesktop=0`, imagem não instalada ou `tr` do busybox estragando o endereço | `AppOnDesktop=1`; `Update software` depois do Deliver terminar; ver `/tmp/provas.log` no diagnóstico |
 | eLux não aparece no GLPI | WSL desligado, porta 8088 fechada ou sem `/setup/glpi-agent/auth` | Tarefa "WSL GLPI", portproxy + firewall, FileEntry na OU; `journalctl -u populos-glpi-inventario` no diagnóstico |
 | GLPI: 503 "invalid inventory authentication setting" | GLPI 12 sem modo de autenticação do inventário | `30-glpi-auth-inventario.sh` |
 | Teams/Outlook com ícone do Edge na barra | Todos os apps Edge na mesma classe de janela | `--user-data-dir` e `--class` próprios por app |
@@ -808,5 +913,8 @@ Detalhes dos scripts em [`uniconos-sdk/`](../uniconos-sdk/README.md).
 | `scripts/criar-ou-porto.ps1` | 19 | OU só com digital, sem AD, com CXone e leitor de PDF |
 | `scripts/imagem-derivada.ps1` | 20 | Imagem nova a partir de outra, com pacotes a mais ou a menos |
 | `scripts/chrome-glpi-todas-ous.ps1` | 20 | Chrome, senha do GLPI e imagens novas em todas as OUs |
+| `scripts/uberagent-todas-ous.ps1` | 21 | uberAgent com dois receptores em todas as OUs |
+| `scripts/teams-todas-ous.ps1` | 22 | Teams for Linux nas OUs (menos TV) |
+| `scripts/criar-ou-provas.ps1` | 23 | OU da sala de provas |
 | `scripts/sql/desfazer-*.sql` | — | Desfazer temas/apps e AD/NonDomain |
 | `scripts/verificar-segredos.ps1` | — | Rode antes de todo `git push` |

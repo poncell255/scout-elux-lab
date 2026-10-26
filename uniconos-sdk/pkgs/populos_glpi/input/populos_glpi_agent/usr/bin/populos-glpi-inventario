@@ -7,9 +7,9 @@
 SERVIDOR=http://10.5.0.166:8088/
 VAR=/setup/glpi-agent
 mkdir -p $VAR
-[ -s $VAR/server ] && SERVIDOR=$(head -n1 $VAR/server | tr -d '[:space:]')
+[ -s $VAR/server ] && SERVIDOR=$(head -n1 $VAR/server | tr -d ' \t\r\n')
 TAG=elux
-[ -s $VAR/tag ] && TAG=$(head -n1 $VAR/tag | tr -d '[:space:]')
+[ -s $VAR/tag ] && TAG=$(head -n1 $VAR/tag | tr -d ' \t\r\n')
 [ -s $VAR/auth ] || { echo "sem $VAR/auth: inventario nao enviado"; exit 0; }
 AUTH=$(head -n1 $VAR/auth | tr -d '\r\n')
 export GLPIAGENT_SCRIPT=glpi-agent

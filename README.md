@@ -18,7 +18,7 @@ Repositório para **recriar do zero** um ambiente de gerenciamento de thin clien
 | UniconOS SDK (`epkg`) | 7.2609.0-5 | Pacotes próprios (digital, ajustes, GLPI Agent) em Docker no WSL2 |
 | GLPI | 12.0.0 (Docker) + GLPI Agent 1.21 | Inventário dos eLux |
 
-Resultado validado: eLux registrado no Scout; firmware atualizado pelas imagens `populos-elux7-v4` (geral) e `populos-elux7-v5` (v4 + driver NVIDIA, OU TV Projetos); temas por OU (papel de parede e logo na tela de boot); Outlook e Teams via Edge `--app`; Citrix Workspace (StoreFront); Horizon (Omnissa); OU de quiosque; **login AD (Kerberos) nos eLux** com OUs sem AD (Populos NonDomain, Modo Kiosk, TV Projetos); NTP; **mirror pelo Scout Board** com controle e sem pedir permissão; tela sempre ativa (sem bloqueio/suspensão); 2 monitores clonados; **6 TVs** com duas NVIDIA Quadro em Base Mosaic, cada uma com uma página do PopulosHub em quiosque, login automático e recarga a cada 5 min. Depois: OU Populos Dev (home persistente, OneDrive, digital como 2º fator); OU **Porto** sem AD, entrada só com a **impressão digital**, CXone e leitor de PDF; **Google Chrome** e **inventário no GLPI** em todas as OUs (imagens v12–v17).
+Resultado validado: eLux registrado no Scout; firmware atualizado pelas imagens `populos-elux7-v4` (geral) e `populos-elux7-v5` (v4 + driver NVIDIA, OU TV Projetos); temas por OU (papel de parede e logo na tela de boot); Outlook e Teams via Edge `--app`; Citrix Workspace (StoreFront); Horizon (Omnissa); OU de quiosque; **login AD (Kerberos) nos eLux** com OUs sem AD (Populos NonDomain, Modo Kiosk, TV Projetos); NTP; **mirror pelo Scout Board** com controle e sem pedir permissão; tela sempre ativa (sem bloqueio/suspensão); 2 monitores clonados; **6 TVs** com duas NVIDIA Quadro em Base Mosaic, cada uma com uma página do PopulosHub em quiosque, login automático e recarga a cada 5 min. Depois: OU Populos Dev (home persistente, OneDrive, digital como 2º fator); OU **Porto** sem AD, entrada só com a **impressão digital**, CXone e leitor de PDF; **Google Chrome** e **inventário no GLPI** em todas as OUs; **uberAgent** enviando para dois servidores; **Teams for Linux** (comunitário); **sala de provas** (OU "Provas": digital abre a prova de certificação Citrix ou Nutanix do aluno, com tempo e nota).
 
 ## Estrutura
 
@@ -33,6 +33,8 @@ scripts/                         PowerShell e SQL usados
 tv-projetos/                     parede de 6 TVs: proxy IIS + tv.js, start-tv.sh, Xorg Base Mosaic (ver tv-projetos/README.md)
 assets/themes/                   temas eLux prontos (Populos, Bom Jesus, Enterprise)
 assets/icons/                    ícones 32x32 dos apps
+provas/                          site de provas com digital (Flask em Docker) e script do eLux
+manual/                          manual de implantação em Word/PDF e as fontes para gerá-lo
 config/parametros.example.ps1    valores que mudam de um ambiente para outro
 ```
 

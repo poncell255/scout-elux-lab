@@ -3,6 +3,8 @@
 IMG=$(cat /root/epkg-image); VERSAO=${1:-1.1.0}
 SRC=/mnt/c/UniconSDK/pkgs
 OUT=/mnt/c/UniconSDK/saida; mkdir -p $OUT
+# compila sempre a partir da fonte atual (antes copiava um binário antigo sem avisar)
+bash /mnt/c/UniconSDK/scripts/04-compilar-digital.sh > /tmp/compilar-digital.log 2>&1 || { cat /tmp/compilar-digital.log; exit 1; }
 ini() { python3 - "$@" <<'PY'
 import sys, configparser
 arq, secao, chave, valor = sys.argv[1:5]

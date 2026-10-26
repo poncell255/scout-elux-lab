@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Provas — Administração</title>
+<link rel="stylesheet" href="/provas/static/estilo.css">
+</head>
+<body>
+<div class="topo"><div class="marca">POPULOS <span>Provas · Administração</span></div><div class="info"></div></div>
+<div class="admin">
+  <div class="cartao">
+    <h2>1. Cadastrar aluno</h2>
+    <div class="form-linha">
+      <input type="text" id="nome" placeholder="Nome completo do aluno" maxlength="80">
+      <select id="prova"></select>
+      <button class="primario" id="b-novo">Cadastrar e capturar a digital</button>
+    </div>
+    <p style="color:var(--suave);font-size:14px;margin-bottom:0">Depois de cadastrar, o aluno coloca o dedo indicador direito no leitor deste servidor (5 leituras).
+      No equipamento da OU <b>Provas</b>, a mesma digital abre a prova certa com o nome dele.</p>
+  </div>
+  <div class="cartao">
+    <h2>2. Alunos e resultados</h2>
+    <div class="form-linha" style="margin-bottom:12px"><input type="text" id="filtro" placeholder="Filtrar por nome"><button id="b-atualizar">Atualizar</button></div>
+    <table><thead><tr><th>#</th><th>Aluno</th><th>Prova</th><th>Digital</th><th>Situação</th><th>Resultado</th><th>Ações</th></tr></thead>
+      <tbody id="lista"></tbody></table>
+  </div>
+</div>
+
+<div class="modal" id="modal"><div class="caixa">
+  <div class="digital-ico">☝</div>
+  <h2 id="m-titulo">Cadastro de digital</h2>
+  <p id="m-msg">Abrindo o leitor...</p>
+  <div class="progresso"><div id="m-barra"></div></div>
+  <p><button id="m-botao">Cancelar</button></p>
+</div></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let dados = {alunos: [], provas: []}, acompanhando = null;
+
+async function api(c, corpo) {
+  const r = await fetch('/provas/admin/api' + c, corpo === undefined ? {} :
+    {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(corpo)});
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.erro || 'HTTP ' + r.status);
+  return j;
+}
+
+async function carregar() {
+  dados = await api('/alunos');
+  const sel = $('#prova'), atual = sel.value;
+  sel.innerHTML = dados.provas.map(p => `<option value="${p.codigo}">${esc(p.titulo)} (${p.questoes} questões)</option>`).join('');
+  if (atual) sel.value = atual;
+  desenhar();
+}
+
+function desenhar() {
+  const f = $('#filtro').value.trim().toLowerCase();
+  const est = {aguardando: ['cinza', 'Aguardando'], aberta: ['azul', 'Prova aberta'], 'em andamento': ['azul', 'Em andamento'], finalizada: ['sim', 'Finalizada']};
+  $('#lista').innerHTML = dados.alunos.filter(a => !f || a.nome.toLowerCase().includes(f)).map(a => {
+    const r = a.resultado, e = est[a.estado] || ['cinza', a.estado];
+    return `<tr>
+      <td>${a.id}</td><td><b>${esc(a.nome)}</b></td>
+      <td><select data-prova="${a.id}" ${a.estado !== 'aguardando' ? 'disabled' : ''}>${dados.provas.map(p => `<option value="${p.codigo}" ${p.codigo === a.prova ? 'selected' : ''}>${p.codigo === 'citrix' ? 'Citrix' : p.codigo === 'nutanix' ? 'Nutanix' : esc(p.codigo)}</option>`).join('')}</select></td>
+      <td>${a.digital ? '<span class="etq sim">Cadastrada</span>' : '<span class="etq nao">Pendente</span>'}</td>
+      <td><span class="etq ${e[0]}">${e[1]}</span>${a.dispositivo ? `<br><small>${esc(a.dispositivo)}</small>` : ''}</td>
+      <td>${r ? `<b style="color:${r.aprovado ? 'var(--verde)' : 'var(--vermelho)'}">${r.nota}%</b> (${r.acertos}/${r.total})<br><small>${r.aprovado ? 'Aprovado' : 'Não aprovado'}</small>` : '—'}</td>
+      <td><div class="acoes">
+        <button data-dig="${a.id}">${a.digital ? 'Recadastrar digital' : 'Capturar digital'}</button>
+        ${a.estado !== 'aguardando' ? `<button data-lib="${a.id}">Liberar nova tentativa</button>` : ''}
+        <button data-exc="${a.id}">Excluir</button></div></td></tr>`;
+  }).join('') || '<tr><td colspan="7" style="color:var(--suave)">Nenhum aluno cadastrado.</td></tr>';
+  document.querySelectorAll('[data-dig]').forEach(b => b.onclick = () => capturar(+b.dataset.dig));
+  document.querySelectorAll('[data-lib]').forEach(b => b.onclick = async () => {
+    if (confirm('Apagar o resultado atual e permitir que o aluno faça a prova de novo?')) { await api(`/alunos/${b.dataset.lib}/liberar`, {}); carregar(); } });
+  document.querySelectorAll('[data-exc]').forEach(b => b.onclick = async () => {
+    if (confirm('Excluir o aluno, a digital e os resultados?')) { await api(`/alunos/${b.dataset.exc}/excluir`, {}); carregar(); } });
+  document.querySelectorAll('[data-prova]').forEach(s => s.onchange = async () => { await api(`/alunos/${s.dataset.prova}/prova`, {prova: s.value}); carregar(); });
+}
+
+async function capturar(id) {
+  const a = dados.alunos.find(x => x.id === id);
+  try { await api(`/alunos/${id}/digital`, {}); } catch (e) { alert(e.message); return; }
+  $('#m-titulo').textContent = 'Cadastro de digital — ' + (a ? a.nome : '');
+  $('#m-msg').textContent = 'Abrindo o leitor...'; $('#m-barra').style.width = '0';
+  $('#m-botao').textContent = 'Cancelar'; $('#modal').classList.add('aberto');
+  clearInterval(acompanhando);
+  acompanhando = setInterval(async () => {
+    const c = await api('/captura');
+    $('#m-msg').textContent = c.mensagem || '';
+    $('#m-barra').style.width = (c.total ? Math.round(100 * c.feitas / c.total) : 0) + '%';
+    if (!c.ativo) {
+      clearInterval(acompanhando);
+      $('#m-msg').innerHTML = c.ok ? '<b style="color:var(--verde)">Digital cadastrada com sucesso.</b>' : `<b style="color:var(--vermelho)">${esc(c.mensagem || 'Falha no cadastro')}</b>`;
+      $('#m-barra').style.width = c.ok ? '100%' : $('#m-barra').style.width;
+      $('#m-botao').textContent = 'Fechar';
+      carregar();
+    }
+  }, 700);
+}
+
+$('#m-botao').onclick = async () => {
+  if ($('#m-botao').textContent === 'Cancelar') await api('/captura/cancelar', {});
+  else $('#modal').classList.remove('aberto');
+};
+$('#b-novo').onclick = async () => {
+  const nome = $('#nome').value.trim();
+  if (!nome) { $('#nome').focus(); return; }
+  try {
+    const r = await api('/alunos', {nome, prova: $('#prova').value});
+    $('#nome').value = ''; await carregar(); capturar(r.id);
+  } catch (e) { alert(e.message); }
+};
+$('#nome').addEventListener('keydown', e => { if (e.key === 'Enter') $('#b-novo').click(); });
+$('#filtro').oninput = desenhar;
+$('#b-atualizar').onclick = carregar;
+carregar(); setInterval(() => { if (!$('#modal').classList.contains('aberto')) carregar(); }, 15000);
+</script>
+</body>
+</html>

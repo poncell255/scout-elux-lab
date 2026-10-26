@@ -7,11 +7,15 @@
  * Modos sem AD (a digital é a única entrada; ligado pelo arquivo /setup/populos-digital/MODO_LOCAL):
  *   populos-digital entrada               identifica quem é entre todas as digitais e libera; sem nenhuma, cadastra a 1ª
  *   populos-digital cadastrar-local       confirma a digital de alguém já cadastrado e cadastra outra pessoa (nome + dedo)
+ * Modo sala de provas (OU Provas; as digitais vêm do site de provas, cadastradas lá):
+ *   populos-digital prova <pasta>         identifica o aluno entre as digitais <id>.fpr da pasta e escreve
+ *                                         "IDENTIFICADO:<id>" na saída; não cadastra ninguém (saída 4 = pasta vazia)
  *
  * Leitor: qualquer um suportado pela libfprint 1.94 (testado para HID DigitalPersona U.are.U 4500, driver uru4000).
  * Digitais: /setup/populos-digital/<usuario>.fpr (dono elux, 0600; criado por tmpfiles.d).
  * Desativar o portão sem reinstalar: criar /setup/populos-digital/DESATIVADO (ex.: arquivo entregue pelo Scout).
- * Saída: 0 = liberado; 1 = sessão deve ser encerrada; 2 = erro de uso; 3 = desligar o equipamento (modo entrada).
+ * Saída: 0 = liberado; 1 = sessão deve ser encerrada; 2 = erro de uso; 3 = desligar o equipamento (modos entrada e prova);
+ *        4 = nenhuma digital na pasta (modo prova).
  */
 #include <gtk/gtk.h>
 #include <fprint.h>
@@ -22,7 +26,7 @@
 #define PASTA "/setup/populos-digital"
 #define MAX_TENTATIVAS 5
 
-typedef enum { MODO_PORTAO, MODO_CADASTRAR, MODO_ENTRADA, MODO_CADASTRAR_LOCAL } Modo;
+typedef enum { MODO_PORTAO, MODO_CADASTRAR, MODO_ENTRADA, MODO_CADASTRAR_LOCAL, MODO_PROVA } Modo;
 typedef enum { ETAPA_ABRINDO, ETAPA_CONFERINDO, ETAPA_IDENTIFICANDO, ETAPA_NOME, ETAPA_CADASTRANDO, ETAPA_FIM } Etapa;
 
 typedef struct {
@@ -34,14 +38,15 @@ typedef struct {
     FpDevice *dev;
     FpPrint *salva;
     GPtrArray *galeria;          /* modos sem AD: todas as digitais cadastradas */
+    const char *pasta_galeria;   /* de onde a galeria é carregada (PASTA, ou a pasta do modo prova) */
     GCancellable *cancel;
     int tentativas;
     int resultado;
     GtkWidget *janela, *titulo, *texto, *barra, *botao_sair, *nome, *botao_nome;
 } App;
 
-static gboolean modo_local(const App *a) { return a->modo == MODO_ENTRADA || a->modo == MODO_CADASTRAR_LOCAL; }
-static gboolean tela_cheia(const App *a) { return a->modo == MODO_PORTAO || a->modo == MODO_ENTRADA; }
+static gboolean modo_local(const App *a) { return a->modo == MODO_ENTRADA || a->modo == MODO_CADASTRAR_LOCAL || a->modo == MODO_PROVA; }
+static gboolean tela_cheia(const App *a) { return a->modo == MODO_PORTAO || a->modo == MODO_ENTRADA || a->modo == MODO_PROVA; }
 
 static void iniciar(App *a);
 static void conferir(App *a);
@@ -116,15 +121,15 @@ static FpPrint *carregar(App *a)
 }
 
 /* modos sem AD: carrega todas as digitais da pasta (o nome da pessoa vai dentro da digital) */
-static GPtrArray *carregar_galeria(void)
+static GPtrArray *carregar_galeria(const char *pasta)
 {
     GPtrArray *g = g_ptr_array_new_with_free_func(g_object_unref);
-    GDir *d = g_dir_open(PASTA, 0, NULL);
+    GDir *d = g_dir_open(pasta, 0, NULL);
     if (!d) return g;
     const char *n;
     while ((n = g_dir_read_name(d))) {
         if (!g_str_has_suffix(n, ".fpr")) continue;
-        char *caminho = g_build_filename(PASTA, n, NULL);
+        char *caminho = g_build_filename(pasta, n, NULL);
         gchar *dados = NULL; gsize tam = 0;
         if (g_file_get_contents(caminho, &dados, &tam, NULL)) {
             FpPrint *p = fp_print_deserialize((guchar *) dados, tam, NULL);
@@ -271,6 +276,14 @@ static void fim_identificacao(GObject *o, GAsyncResult *r, gpointer ud)
     }
     if (achou) {
         const char *quem = fp_print_get_username(achou);
+        if (a->modo == MODO_PROVA) {
+            /* o script da sala de provas lê esta linha e abre a prova do aluno */
+            g_print("IDENTIFICADO:%s\n", quem ? quem : "");
+            const char *nome = fp_print_get_description(achou);
+            char *t = g_strdup_printf("Olá, %s! Abrindo a sua prova...", nome && *nome ? nome : (quem ? quem : ""));
+            liberar(a, t); g_free(t);
+            return;
+        }
         if (a->modo == MODO_CADASTRAR_LOCAL) {
             char *t = g_strdup_printf("Autorizado por %s. Agora informe o nome da pessoa que será cadastrada.", quem ? quem : "?");
             mensagem(a, NULL, t); g_free(t);
@@ -292,7 +305,9 @@ static void identificar(App *a)
 {
     if (a->etapa == ETAPA_FIM) return;
     a->etapa = ETAPA_IDENTIFICANDO;
-    mensagem(a, a->modo == MODO_ENTRADA
+    mensagem(a, a->modo == MODO_PROVA
+                 ? "<span size='xx-large' weight='bold'>Coloque o dedo no leitor</span>\n<span size='large'>Sala de provas: sua prova abre automaticamente</span>"
+             : a->modo == MODO_ENTRADA
                  ? "<span size='xx-large' weight='bold'>Coloque o dedo no leitor</span>\n<span size='large'>Entrada por impressão digital</span>"
                  : "<span size='xx-large' weight='bold'>Autorização</span>\n<span size='large'>Uma pessoa já cadastrada precisa confirmar a digital</span>",
              a->tentativas ? NULL : "Aguardando a digital...");
@@ -342,6 +357,14 @@ static void leitor_aberto(GObject *o, GAsyncResult *r, gpointer ud)
         return;
     }
     if (modo_local(a)) {
+        if (a->galeria->len == 0 && a->modo == MODO_PROVA) {
+            /* sala de provas: quem cadastra é o site; sem nenhum aluno pendente, avisa e devolve 4 (o script tenta de novo) */
+            mensagem(a, "<span size='xx-large' weight='bold'>Nenhuma prova pendente</span>",
+                     "Não há alunos com prova pendente cadastrados no site de provas. Tentando de novo em instantes...");
+            a->resultado = 4;
+            g_timeout_add_seconds(15, encerrar_depois, a);
+            return;
+        }
         if (a->galeria->len == 0) pedir_nome(a); else identificar(a);
         return;
     }
@@ -375,7 +398,7 @@ static void clicou_sair(GtkButton *b, gpointer ud)
 {
     App *a = ud;
     (void) b;
-    encerrar(a, a->modo == MODO_PORTAO ? 1 : a->modo == MODO_ENTRADA ? 3 : 0);
+    encerrar(a, a->modo == MODO_PORTAO ? 1 : (a->modo == MODO_ENTRADA || a->modo == MODO_PROVA) ? 3 : 0);
 }
 
 static gboolean fechou_janela(GtkWidget *w, GdkEvent *ev, gpointer ud)
@@ -443,7 +466,7 @@ static GtkWidget *montar_janela(App *a)
     gtk_label_set_justify(GTK_LABEL(a->texto), GTK_JUSTIFY_CENTER);
     a->barra = gtk_progress_bar_new();
     gtk_widget_set_size_request(a->barra, 420, -1);
-    a->botao_sair = gtk_button_new_with_label(a->modo == MODO_PORTAO ? "Encerrar sessão" : a->modo == MODO_ENTRADA ? "Desligar" : "Fechar");
+    a->botao_sair = gtk_button_new_with_label(a->modo == MODO_PORTAO ? "Encerrar sessão" : (a->modo == MODO_ENTRADA || a->modo == MODO_PROVA) ? "Desligar" : "Fechar");
     gtk_widget_set_halign(a->botao_sair, GTK_ALIGN_CENTER);
     g_signal_connect(a->botao_sair, "clicked", G_CALLBACK(clicou_sair), a);
     a->nome = gtk_entry_new();
@@ -473,11 +496,13 @@ int main(int argc, char **argv)
     else if (argc >= 3 && !strcmp(argv[1], "cadastrar")) a.modo = MODO_CADASTRAR;
     else if (argc >= 2 && !strcmp(argv[1], "entrada")) a.modo = MODO_ENTRADA;
     else if (argc >= 2 && !strcmp(argv[1], "cadastrar-local")) a.modo = MODO_CADASTRAR_LOCAL;
+    else if (argc >= 3 && !strcmp(argv[1], "prova")) a.modo = MODO_PROVA;
     else {
-        g_printerr("uso: %s portao|cadastrar <usuario>\n       %s entrada|cadastrar-local\n", argv[0], argv[0]);
+        g_printerr("uso: %s portao|cadastrar <usuario>\n       %s entrada|cadastrar-local\n       %s prova <pasta>\n", argv[0], argv[0], argv[0]);
         return 2;
     }
-    a.usuario = argc >= 3 ? argv[2] : "";
+    a.usuario = argc >= 3 && a.modo != MODO_PROVA ? argv[2] : "";
+    a.pasta_galeria = a.modo == MODO_PROVA ? argv[2] : PASTA;
     a.resultado = 1;
     a.cancel = g_cancellable_new();
 
@@ -487,7 +512,7 @@ int main(int argc, char **argv)
     }
     gtk_init(&argc, &argv);
     if (modo_local(&a)) {
-        a.galeria = carregar_galeria();
+        a.galeria = carregar_galeria(a.pasta_galeria);
         g_print("digitais cadastradas: %u\n", a.galeria->len);
     } else {
         a.arquivo = arquivo_do_usuario(a.usuario);
