@@ -1,0 +1,20 @@
+[Unit]
+Description=Netskope client daemon (eLux: cadastro guardado em /setup/netskope-estado)
+Wants=network-online.target
+After=network-online.target local-fs.target
+
+[Service]
+Type=simple
+ExecCondition=/bin/sh -c 'test -s /setup/netskope/instalador || test -d /setup/netskope-estado'
+ExecStartPre=/opt/netskope/stagent/scripts/netskope-estado.sh preparar
+ExecStart=/opt/netskope/stagent/stAgentSvc
+ExecStopPost=/opt/netskope/stagent/scripts/netskope-estado.sh salvar
+WorkingDirectory=/opt/netskope/stagent
+KillMode=process
+Restart=always
+RestartSec=10
+TimeoutStartSec=180
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target

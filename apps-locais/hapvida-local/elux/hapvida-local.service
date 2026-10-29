@@ -1,0 +1,18 @@
+[Unit]
+Description=HAPVIDA Local - cadastro, exames e prontuario no equipamento
+After=local-fs.target systemd-tmpfiles-setup.service
+
+[Service]
+Type=simple
+User=elux
+UMask=0077
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONPATH=/opt/hapvida-local/vendor:/usr/lib/python3/dist-packages
+WorkingDirectory=/opt/hapvida-local
+ExecStart=/usr/bin/python3 /opt/hapvida-local/run.py
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

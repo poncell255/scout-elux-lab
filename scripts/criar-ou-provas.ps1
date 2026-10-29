@@ -2,7 +2,7 @@
 # Um único app, "Prova", abre sozinho e roda /setup/provas/prova.sh: digital (populos_digital >= 1.2.0, modo prova)
 # -> prova do aluno no Edge em quiosque (site de provas no servidor) -> volta para a digital.
 # Arquivos: /setup/provas/{prova.sh,chave,servidor} + os da Porto (GLPI, uberAgent), sem tema, sem MODO_LOCAL e sem a marca da Porto.
-param([int]$SetupOrigem = 7, [int]$OuOrigem = 11, [string]$Nome = 'Provas', [string]$Imagem = 'populos-elux7-v26.idf',
+param([int]$SetupOrigem = 7, [int]$OuOrigem = 11, [string]$Nome = 'Provas', [string]$Imagem = 'populos-elux7-v27.idf',
       [string]$Servidor = 'http://10.5.0.166/provas', [string]$Script = 'C:\ScoutSetup\provas\elux\prova.sh')
 $c=Get-Content C:\ScoutSetup\credenciais.txt; $sa=(($c | Where-Object {$_ -match '^SQL sa'}) -split ' / ',2)[1].Trim()
 $chave=(($c | Where-Object {$_ -match '^Provas chave'}) -split ' / ',2)[1].Trim()
@@ -54,4 +54,5 @@ try {
   $tx.Commit(); "COMMIT OK: OU $ou / setup $s"
 } catch { $tx.Rollback(); "ROLLBACK: $($_.Exception.Message)" }
 $cn.Close()
+
 

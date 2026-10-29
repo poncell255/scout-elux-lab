@@ -23,11 +23,12 @@ while true; do
     rm -rf $GALERIA; mkdir -p $GALERIA
     api "$SERVIDOR/api/galeria" | tar -xz -C $GALERIA 2>> $LOG || log "galeria indisponível"
 
-    # 2) identificação (tela cheia, botão Desligar = saída 3)
+    # 2) identificação (tela cheia; botões Desligar = saída 3 e Reiniciar = saída 5)
     saida=$(/usr/bin/populos-digital prova $GALERIA); rc=$?
     ID=$(echo "$saida" | sed -n 's/^IDENTIFICADO://p' | head -n1)
     log "digital: saída $rc, aluno '$ID'"
     if [ $rc -eq 3 ]; then ucsettingsctl --run Session.Shutdown; exit 0; fi
+    if [ $rc -eq 5 ]; then ucsettingsctl --run Session.Reboot; exit 0; fi
     [ -z "$ID" ] && { sleep 3; continue; }
 
     # 3) sessão da prova (retoma se já estava em andamento)

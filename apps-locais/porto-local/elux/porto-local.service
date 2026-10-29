@@ -1,0 +1,18 @@
+[Unit]
+Description=Porto Local (teste) - segurados, apolices e solicitacoes com digital no equipamento
+After=local-fs.target systemd-tmpfiles-setup.service
+
+[Service]
+Type=simple
+User=elux
+UMask=0077
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONPATH=/opt/porto-local/vendor:/usr/lib/python3/dist-packages
+WorkingDirectory=/opt/porto-local
+ExecStart=/usr/bin/python3 /opt/porto-local/run.py
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

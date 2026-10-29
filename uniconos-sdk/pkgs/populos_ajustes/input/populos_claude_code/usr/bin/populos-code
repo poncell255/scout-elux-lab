@@ -1,0 +1,15 @@
+#!/bin/bash
+# POPULOS (populos_ajustes/populos_claude_code): abre o VS Code garantindo antes, no settings.json do usuário,
+# a configuração que faz a extensão do Claude Code rodar pelo wrapper (a home do UniconOS não executa programas).
+# Feito na abertura (e não só no login) porque a home persistente monta ~/.config/Code depois do login.d.
+cfg="$HOME/.config/Code/User/settings.json"
+[[ $HOME == / || -z $HOME ]] && cfg=/home/elux/.config/Code/User/settings.json
+linha='"claudeCode.claudeProcessWrapper": "/usr/bin/populos-claude-wrapper"'
+mkdir -p "$(dirname "$cfg")"
+if [[ ! -s $cfg ]] || grep -qE '^[[:space:]]*\{[[:space:]]*\}[[:space:]]*$' "$cfg"; then
+    printf '{\n    %s\n}\n' "$linha" > "$cfg"
+elif ! grep -q '"claudeCode.claudeProcessWrapper"' "$cfg"; then
+    sed -i "0,/{/s||{\n    $linha,|" "$cfg"
+fi
+echo "$(date '+%F %T') populos-code: $(grep -c claudeProcessWrapper "$cfg") wrapper em $cfg" >> /tmp/populos-code.log
+exec /usr/bin/code "$@"

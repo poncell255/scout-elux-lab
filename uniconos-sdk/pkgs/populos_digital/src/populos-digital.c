@@ -15,7 +15,7 @@
  * Digitais: /setup/populos-digital/<usuario>.fpr (dono elux, 0600; criado por tmpfiles.d).
  * Desativar o portão sem reinstalar: criar /setup/populos-digital/DESATIVADO (ex.: arquivo entregue pelo Scout).
  * Saída: 0 = liberado; 1 = sessão deve ser encerrada; 2 = erro de uso; 3 = desligar o equipamento (modos entrada e prova);
- *        4 = nenhuma digital na pasta (modo prova).
+ *        4 = nenhuma digital na pasta (modo prova); 5 = reiniciar o equipamento (modos entrada e prova).
  */
 #include <gtk/gtk.h>
 #include <fprint.h>
@@ -42,7 +42,7 @@ typedef struct {
     GCancellable *cancel;
     int tentativas;
     int resultado;
-    GtkWidget *janela, *titulo, *texto, *barra, *botao_sair, *nome, *botao_nome;
+    GtkWidget *janela, *titulo, *texto, *barra, *botao_sair, *botao_reiniciar, *nome, *botao_nome;
 } App;
 
 static gboolean modo_local(const App *a) { return a->modo == MODO_ENTRADA || a->modo == MODO_CADASTRAR_LOCAL || a->modo == MODO_PROVA; }
@@ -371,6 +371,19 @@ static void leitor_aberto(GObject *o, GAsyncResult *r, gpointer ud)
     if (a->salva) conferir(a); else cadastrar(a);
 }
 
+/* Notebooks com sensor embutido (ex.: Goodix 27c6:639c) mostram mais de um leitor: prefere o U.are.U USB
+ * (driver uru4000), em que as digitais foram cadastradas. Outro driver: variável POPULOS_LEITOR (ex.: goodixmoc). */
+static FpDevice *escolher_leitor(GPtrArray *devs)
+{
+    const char *quero = g_getenv("POPULOS_LEITOR");
+    if (!quero || !*quero) quero = "uru4000";
+    for (guint i = 0; i < devs->len; i++) {
+        FpDevice *d = g_ptr_array_index(devs, i);
+        if (!g_strcmp0(fp_device_get_driver(d), quero)) return d;
+    }
+    return g_ptr_array_index(devs, 0);
+}
+
 static gboolean procurar_leitor(gpointer p)
 {
     App *a = p;
@@ -381,7 +394,8 @@ static gboolean procurar_leitor(gpointer p)
                  "Conecte o leitor USB. Procurando de novo...");
         return G_SOURCE_CONTINUE;
     }
-    a->dev = g_object_ref(g_ptr_array_index(devs, 0));
+    a->dev = g_object_ref(escolher_leitor(devs));
+    g_print("leitor: %s (driver %s, %u encontrado(s))\n", fp_device_get_name(a->dev), fp_device_get_driver(a->dev), devs->len);
     mensagem(a, NULL, "Abrindo o leitor...");
     fp_device_open(a->dev, a->cancel, leitor_aberto, a);
     return G_SOURCE_REMOVE;
@@ -399,6 +413,12 @@ static void clicou_sair(GtkButton *b, gpointer ud)
     App *a = ud;
     (void) b;
     encerrar(a, a->modo == MODO_PORTAO ? 1 : (a->modo == MODO_ENTRADA || a->modo == MODO_PROVA) ? 3 : 0);
+}
+
+static void clicou_reiniciar(GtkButton *b, gpointer ud)
+{
+    (void) b;
+    encerrar(ud, 5);
 }
 
 static gboolean fechou_janela(GtkWidget *w, GdkEvent *ev, gpointer ud)
@@ -467,8 +487,16 @@ static GtkWidget *montar_janela(App *a)
     a->barra = gtk_progress_bar_new();
     gtk_widget_set_size_request(a->barra, 420, -1);
     a->botao_sair = gtk_button_new_with_label(a->modo == MODO_PORTAO ? "Encerrar sessão" : (a->modo == MODO_ENTRADA || a->modo == MODO_PROVA) ? "Desligar" : "Fechar");
-    gtk_widget_set_halign(a->botao_sair, GTK_ALIGN_CENTER);
     g_signal_connect(a->botao_sair, "clicked", G_CALLBACK(clicou_sair), a);
+    /* nas telas sem login (entrada e sala de provas) também dá para reiniciar o equipamento */
+    GtkWidget *botoes = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 16);
+    gtk_widget_set_halign(botoes, GTK_ALIGN_CENTER);
+    if (a->modo == MODO_ENTRADA || a->modo == MODO_PROVA) {
+        a->botao_reiniciar = gtk_button_new_with_label("Reiniciar");
+        g_signal_connect(a->botao_reiniciar, "clicked", G_CALLBACK(clicou_reiniciar), a);
+        gtk_box_pack_start(GTK_BOX(botoes), a->botao_reiniciar, FALSE, FALSE, 0);
+    }
+    gtk_box_pack_start(GTK_BOX(botoes), a->botao_sair, FALSE, FALSE, 0);
     a->nome = gtk_entry_new();
     gtk_entry_set_placeholder_text(GTK_ENTRY(a->nome), "Nome da pessoa (ex.: Maria Souza)");
     gtk_entry_set_max_length(GTK_ENTRY(a->nome), 60);
@@ -483,7 +511,7 @@ static GtkWidget *montar_janela(App *a)
     gtk_box_pack_start(GTK_BOX(caixa), a->nome, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(caixa), a->botao_nome, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(caixa), a->barra, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(caixa), a->botao_sair, FALSE, FALSE, 12);
+    gtk_box_pack_start(GTK_BOX(caixa), botoes, FALSE, FALSE, 12);
     gtk_container_add(GTK_CONTAINER(w), caixa);
     if (!tela_cheia(a)) g_signal_connect(w, "delete-event", G_CALLBACK(fechou_janela), a);
     return w;

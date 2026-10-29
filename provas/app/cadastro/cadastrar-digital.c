@@ -50,6 +50,18 @@ static void fim(GObject *o, GAsyncResult *r, gpointer ud)
     g_main_loop_quit(laco);
 }
 
+/* Prefere o U.are.U USB (driver uru4000) se houver mais de um leitor; outro driver: POPULOS_LEITOR. */
+static FpDevice *escolher_leitor(GPtrArray *devs)
+{
+    const char *quero = g_getenv("POPULOS_LEITOR");
+    if (!quero || !*quero) quero = "uru4000";
+    for (guint i = 0; i < devs->len; i++) {
+        FpDevice *d = g_ptr_array_index(devs, i);
+        if (!g_strcmp0(fp_device_get_driver(d), quero)) return d;
+    }
+    return g_ptr_array_index(devs, 0);
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 4) { fprintf(stderr, "uso: %s <arquivo.fpr> <id> <nome>\n", argv[0]); return 2; }
@@ -57,7 +69,7 @@ int main(int argc, char **argv)
     FpContext *ctx = fp_context_new();
     GPtrArray *devs = fp_context_get_devices(ctx);
     if (!devs || devs->len == 0) { printf("ERRO leitor de digital não encontrado\n"); return 1; }
-    FpDevice *dev = g_ptr_array_index(devs, 0);
+    FpDevice *dev = escolher_leitor(devs);
     GError *e = NULL;
     if (!fp_device_open_sync(dev, NULL, &e)) { printf("ERRO não foi possível abrir o leitor: %s\n", e->message); return 1; }
     printf("LEITOR %s\nETAPAS %d\n", fp_device_get_name(dev), fp_device_get_nr_enroll_stages(dev));

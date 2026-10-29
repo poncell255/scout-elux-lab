@@ -1,0 +1,9 @@
+[Unit]
+Description=Netskope: guarda o cadastro do cliente periodicamente
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=10min
+
+[Install]
+WantedBy=timers.target

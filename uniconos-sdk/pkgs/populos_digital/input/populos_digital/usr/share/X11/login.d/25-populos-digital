@@ -4,7 +4,7 @@
 #  - Sem AD (AuthType = 0) e com /setup/populos-digital/MODO_LOCAL (entregue pelo Scout só nas OUs desejadas):
 #    a digital é a única entrada (modo "entrada": identifica a pessoa entre as digitais cadastradas).
 # Script lido (source) pelo elux-session antes do desktop: usar return, nunca exit.
-# Resultado do populos-digital: 0 = liberado; 1 = encerrar a sessão; 3 = desligar o equipamento.
+# Resultado do populos-digital: 0 = liberado; 1 = encerrar a sessão; 3 = desligar; 5 = reiniciar o equipamento.
 # Qualquer outro código (falha inesperada do programa) libera e registra, para não trancar ninguém fora.
 # Desativar sem nova imagem: criar /setup/populos-digital/DESATIVADO (pode ser entregue pelo Scout).
 populos_digital_portao()
@@ -34,6 +34,8 @@ populos_digital_portao()
            ucsettingsctl --run Session.Close ;;
         3) echo "populos-digital: desligamento pedido na tela de entrada"
            ucsettingsctl --run Session.Shutdown ;;
+        5) echo "populos-digital: reinicio pedido na tela de entrada"
+           ucsettingsctl --run Session.Reboot ;;
         *) echo "populos-digital: falha inesperada (codigo $rc), sessao liberada" ;;
     esac
     return 0

@@ -1,0 +1,18 @@
+[Unit]
+Description=BTG Local (teste) - clientes, conta e autorizacoes com digital no equipamento
+After=local-fs.target systemd-tmpfiles-setup.service
+
+[Service]
+Type=simple
+User=elux
+UMask=0077
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONPATH=/opt/btg-local/vendor:/usr/lib/python3/dist-packages
+WorkingDirectory=/opt/btg-local
+ExecStart=/usr/bin/python3 /opt/btg-local/run.py
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

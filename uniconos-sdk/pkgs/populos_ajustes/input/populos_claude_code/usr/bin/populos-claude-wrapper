@@ -5,6 +5,7 @@
 # sempre na versão que a própria extensão trouxe, para /var/lib/populos-claude (criada no boot via tmpfiles.d)
 # e o executa de lá com os mesmos argumentos.
 destino=/var/lib/populos-claude
+echo "$(date '+%F %T') chamado com: $*" >> /tmp/populos-claude.log
 bin=""
 # a extensão chama o wrapper passando o caminho do executável como 1º argumento
 if [[ -n $1 && -f $1 && $(basename -- "$1") == claude ]]; then
@@ -22,4 +23,5 @@ if [[ ! -x $copia ]]; then
     rm -f "$destino"/claude-* 2>/dev/null
     cp "$bin" "$copia.tmp" && chmod 0700 "$copia.tmp" && mv "$copia.tmp" "$copia" || { echo "populos-claude-wrapper: falha ao copiar para $destino" >&2; exit 126; }
 fi
+echo "$(date '+%F %T') executando $copia (origem $bin)" >> /tmp/populos-claude.log
 exec "$copia" "$@"

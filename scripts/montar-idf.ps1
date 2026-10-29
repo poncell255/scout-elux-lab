@@ -20,7 +20,7 @@ function SelectEpm($eid, $why) {
     if (-not $selEpm.Contains($eid)) { $selEpm[$eid] = $true; $motivo[$eid] = $why
         foreach ($fid in @($epmById[$eid].fpms)) { $f = $fpmById[$fid]; if ($f -and ($f.isMandatory -or $f.isPreselected)) { $selFpm[$fid] = $true } } }
 }
-foreach ($n in $AddEpms) { $e = $epms | Where-Object name -eq $n | Sort-Object { $v = ($_.version -replace '[^0-9.]','').Trim('.'); $r = $null; if ([version]::TryParse($v, [ref]$r)) { $r } else { [version]'0.0' } } -Descending | Select-Object -First 1; if ($e) { SelectEpm $e.id 'pedido' } else { Write-Warning "EPM nao encontrado: $n" } }
+foreach ($n in $AddEpms) { $e = $epms | Where-Object name -eq $n | Sort-Object { (($_.version -replace '[^0-9.]','').Trim('.') -split '\.' | Where-Object { $_ } | ForEach-Object { $_.PadLeft(10, '0') }) -join '.' } -Descending | Select-Object -First 1; if ($e) { SelectEpm $e.id 'pedido' } else { Write-Warning "EPM nao encontrado: $n" } }
 foreach ($n in $AddFpms) { $f = $fpms | Where-Object name -eq $n | Select-Object -First 1; if ($f) { $selFpm[$f.id] = $true; $motivo[$f.id] = 'pedido'; $eid = EpmOfFpm $f.id; if ($eid) { SelectEpm $eid "contem $n" } } else { Write-Warning "FPM nao encontrado: $n" } }
 
 $naoResolvido = @{}

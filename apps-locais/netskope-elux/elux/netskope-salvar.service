@@ -1,0 +1,7 @@
+[Unit]
+Description=Netskope: guarda o cadastro do cliente em /setup/netskope-estado
+ConditionPathExists=/opt/netskope/stagent/nsbranding.json
+
+[Service]
+Type=oneshot
+ExecStart=/opt/netskope/stagent/scripts/netskope-estado.sh salvar
