@@ -40,3 +40,17 @@
 38. **"Update software" antes de a entrega terminar não instala nada**: o log de entrega fica completo, mas o `boot.update.log` mostra que a imagem anterior continuou. Espere o fim do Deliver e confira em `setup/eluxman/update.<n>.log` e `setup/logs/boot.update.log` no diagnóstico.
 39. **Script de build que copia binário pronto engana**: o `17-build-digital.sh` empacotava um `populos-digital` antigo, e a 1.2.0 saiu sem o modo novo. Compile sempre dentro do build e confira o binário (ex.: rodar sem argumentos e ver o "uso").
 40. **Digital cadastrada em outro leitor funciona** se for do mesmo driver da libfprint: o `uru4000` grava `device_id=0`. Cadastrar pelo leitor do servidor exige passar o USB ao WSL com o usbipd-win (`usbipd bind` uma vez; `usbipd attach --wsl` a cada reinício).
+41. **Importar qualquer pacote no ELIAS 18 invalida as imagens existentes**: os `.idf` passam a dar 404 ("Legacy IDF failed") e o Update falha. Depois de cada importação, rode `scripts/reparar-idfs.ps1`. Ele remonta com a mesma seleção e grava com `PUT idf/<_id>`.
+42. **O ELIAS ignora pacote com nome e versão já importados.** Para corrigir um pacote quebrado, suba a versão (por exemplo, `26.8.2` → `26.8.2.1`).
+43. **Instalador `.run` com segredo no nome** (Netskope: tenant + token): o nome vai como FileEntry em `/setup/...`, nunca no pacote. O build confere que o token não entrou.
+44. **Programa que grava estado em `/opt`** perde tudo no reboot (RAM). Restaure de `/setup` antes do serviço e salve depois, por parada e timer, como no Netskope.
+45. **Agente de usuário iniciado cedo demais não habilita** (Netskope): o autostart precisa esperar o serviço do sistema e o socket dele.
+46. **Python e Flask já existem no catálogo Unicon** (`python3`, `python3_flask`): dá para rodar um sistema web completo dentro do eLux, em `127.0.0.1`, sem Docker. Dados em `/setup/<sistema>`, pastas por `tmpfiles.d`.
+47. **Senha de admin para o aparelho só como verificador PBKDF2**, entregue por FileEntry. Trocar a senha no `credenciais.txt` não muda o verificador já entregue.
+48. **Câmera (`getUserMedia`) só em contexto seguro**: `127.0.0.1` funciona; `http://<IP>` não. A exceção `--unsafely-treat-insecure-origin-as-secure` só vale com um perfil do Edge próprio e fechado antes de reabrir.
+49. **Citrix Workspace com home persistente**: login, "Allow" e depois nada. A hipótese é a falta do Secret Service (FPM `desktop_environment_gnome_keyring`), a validar.
+50. **Serviço systemd no WSL não chama `powershell.exe`** ("Invalid argument", mesmo com `WSL_INTEROP`). Automação do lado Linux fala direto com as APIs (o ELIAS, no SDK), não com scripts do Windows.
+51. **"Embutir bibliotecas" em programa grande** (LibreOffice) puxa KF5/Qt6 e multiplica o tamanho. Prefira os FPMs da Unicon e confira o tamanho antes.
+52. **Arquivo `.tar.gz` com vários `.deb`** (LibreOffice oficial): abra todos os `.deb` na mesma árvore. Sem isso o pacote sai só com os `.deb` dentro e não funciona.
+53. **Script de publicação com a lista de valores a esconder dentro dele publica esses valores.** Guarde a lista de saneamento fora do repositório (`C:\ScoutSetup\saneamento.txt`) e faça a busca de segredos procurar por ela.
+54. **Perfil por usuário**: tema, setup e OU são do aparelho no Scout; os grupos dinâmicos (`DynamicClientGroup`) separam aparelhos, não usuários. Apps por grupo do AD usam expressão `ShowApp`; papel de parede por grupo precisa de um pacote que troque o tema no login.

@@ -1,0 +1,21 @@
+{
+    "welcomeBackgroundImage":  {
+                                   "scaling":  "crop",
+                                   "type":  "png"
+                               },
+    "name":  "hapvida-v4",
+    "brandImage":  {
+                       "scaling":  "contain",
+                       "type":  "png"
+                   },
+    "accentColor":  "#FF9800",
+    "productImage":  {
+                         "scaling":  "contain",
+                         "type":  "png"
+                     },
+    "welcomeBackgroundLayout":  "none",
+    "desktopBackgroundImage":  {
+                                   "scaling":  "crop",
+                                   "type":  "png"
+                               }
+}

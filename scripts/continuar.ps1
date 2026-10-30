@@ -112,6 +112,10 @@ function Sync {
     Copy-Item C:\inetpub\conversor\web.config "$REPO\conversor\deploy\iis-web.config" -Force
     # Apps locais e Netskope: só o código (sem saida/ com pacotes e binários de terceiros, sem dados)
     foreach ($p in 'hapvida-local', 'btg-local', 'porto-local', 'netskope-elux') { if (Test-Path "C:\Users\Administrator\Downloads\$p") { robocopy "C:\Users\Administrator\Downloads\$p" "$REPO\apps-locais\$p" /E /XD saida dados __pycache__ .git /XF *.db *.pyc *.fpm *.epm *.zip *.idf *.run *.env /NJH /NJS /NFL /NDL | Out-Null } }
+    # Simulador de saúde HAPVIDA (servidor) e temas mais novos das OUs HAPVIDA Local e BTG
+    robocopy C:\ScoutSetup\hapvida "$REPO\apps-servidor\hapvida" /E /XD saida dados backups __pycache__ "C:\ScoutSetup\hapvida\deploy\deploy" /XF *.pyc *.env *.db /NJH /NJS /NFL /NDL | Out-Null
+    robocopy C:\Users\Administrator\Downloads\hapvida-v4 "$REPO\assets\themes\hapvida-v4" /E /NJH /NJS /NFL /NDL | Out-Null
+    robocopy C:\eLuxContainer\theme\btg "$REPO\assets\themes\btg" /E /NJH /NJS /NFL /NDL | Out-Null
     if (Test-Path C:\Users\Administrator\Downloads\CONTINUAR-COM-CODEX.md) { Copy-Item C:\Users\Administrator\Downloads\CONTINUAR-COM-CODEX.md "$REPO\docs\CONTINUAR-COM-CODEX.md" -Force }
     # HISTORICO = MD vivo sem e-mails, IDs do tenant e valores sensíveis já conhecidos.
     # Os pares "regex => troca" ficam em C:\ScoutSetup\saneamento.txt, só no servidor (nunca no repositório).

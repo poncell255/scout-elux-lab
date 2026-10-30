@@ -1,6 +1,18 @@
 # Guia de implantação do zero — Scout Enterprise + ELIAS 18 + eLux 7
 
-Guia para implantar, num ambiente novo, o mesmo projeto montado no laboratório da POPULOS entre 15 e 22/10/2026: gerenciamento de thin clients eLux 7 (UniconOS) com Citrix/Unicon Scout Enterprise, imagens montadas no ELIAS 18, login AD nos thin clients, OUs com apps e temas próprios, quiosque Citrix, home persistente e uma parede de 6 TVs.
+Guia para implantar, num ambiente novo, o mesmo projeto montado no laboratório da POPULOS entre 15 e 30/10/2026. Ele cobre:
+- gerenciamento de thin clients eLux 7 (UniconOS) com Citrix/Unicon Scout Enterprise;
+- imagens montadas no ELIAS 18;
+- login AD nos thin clients;
+- OUs com apps e temas próprios;
+- quiosque Citrix e home persistente;
+- uma parede de 6 TVs;
+- pacotes próprios com o SDK da Unicon: digital, GLPI, Teams, Netskope;
+- sala de provas;
+- sistemas que rodam dentro do eLux (HAPVIDA Local, BTG, Porto);
+- o **Populos UniconOS SDK**, conversor web de programas e drivers.
+
+> **Agente de IA:** leia antes o [COMECE-AQUI-IA.md](COMECE-AQUI-IA.md) (modelo mental, mapa, regras e estado).
 
 **Para quem é:** quem vai executar a implantação (analista de infraestrutura ou um agente de IA). Pressupõe familiaridade com Windows Server, SQL Server, IIS, Active Directory e linha de comando PowerShell; não pressupõe conhecimento prévio de Scout ou eLux.
 
@@ -40,11 +52,25 @@ Guia para implantar, num ambiente novo, o mesmo projeto montado no laboratório 
 20. [Fase 15 — Home persistente (OU de desenvolvimento)](#fase-15--home-persistente-ou-de-desenvolvimento)
 21. [Fase 16 — Parede de 6 TVs](#fase-16--parede-de-6-tvs)
 22. [Fase 17 — Acesso de fora da rede (opcional)](#fase-17--acesso-de-fora-da-rede-opcional)
-23. [Operação e diagnóstico](#operação-e-diagnóstico)
-24. [Tabela de problemas e soluções](#tabela-de-problemas-e-soluções)
-25. [Validação final](#validação-final)
-26. [Pendências e riscos conhecidos](#pendências-e-riscos-conhecidos)
-27. [Mapa dos scripts](#mapa-dos-scripts)
+23. [Fase 18 — Pacotes próprios com o SDK](#fase-18--pacotes-próprios-com-o-sdk-digital-vs-code-nativo-ajustes)
+24. [Fase 19 — OU só com digital, sem AD (Porto)](#fase-19--ou-só-com-digital-sem-ad-ou-porto)
+25. [Fase 20 — GLPI e Google Chrome](#fase-20--inventário-no-glpi-e-google-chrome-em-todas-as-ous)
+26. [Fase 21 — uberAgent com dois servidores](#fase-21--uberagent-enviando-para-dois-servidores)
+27. [Fase 22 — Teams for Linux](#fase-22--teams-for-linux-cliente-comunitário-nas-ous)
+28. [Fase 23 — Sala de provas com digital](#fase-23--sala-de-provas-com-digital-ou-provas)
+29. [Fase 24 — Simulador HAPVIDA no servidor](#fase-24--simulador-de-saúde-hapvida-no-servidor-ou-hapvida)
+30. [Fase 25 — Netskope Client](#fase-25--netskope-client-nas-ous-populos-hapvida-e-hapvida-local)
+31. [Fase 26 — Reparar imagens depois de importar pacotes](#fase-26--reparar-as-imagens-depois-de-importar-pacotes-no-elias-rotina-obrigatória)
+32. [Fase 27 — Sistemas locais dentro do eLux](#fase-27--sistemas-locais-dentro-do-elux-hapvida-local-btg-porto)
+33. [Fase 28 — Word, Excel e PowerPoint web](#fase-28--word-excel-e-powerpoint-microsoft-365-web-em-todas-as-ous)
+34. [Fase 29 — Citrix com home persistente](#fase-29--citrix-workspace-com-home-persistente-gnome-keyring)
+35. [Fase 30 — Populos UniconOS SDK](#fase-30--populos-uniconos-sdk-conversor-web-de-programas-e-drivers)
+36. [Fase 31 — Operação e GitHub](#fase-31--operação-script-de-continuidade-mapa-de-imagens-e-github)
+37. [Operação e diagnóstico](#operação-e-diagnóstico)
+38. [Tabela de problemas e soluções](#tabela-de-problemas-e-soluções)
+39. [Validação final](#validação-final)
+40. [Pendências e riscos conhecidos](#pendências-e-riscos-conhecidos)
+41. [Mapa dos scripts](#mapa-dos-scripts)
 
 ---
 
@@ -97,6 +123,9 @@ Um único Windows Server hospeda tudo. Os eLux falam com o Scout Server para reg
 | 27000, 7279, 8083 | local | Citrix License Server |
 | 88, 389 (636) | eLux → DC | Kerberos e LDAP para o login AD |
 | UDP 123 | eLux → NTP | Hora (Kerberos exige diferença < 5 min) |
+| TCP 8088 | eLux/Admin → servidor | GLPI (portproxy para o WSL 8080) |
+| TCP 80 `/provas`, `/hapvida`, `/conversor` | eLux/Admin → IIS | Reescritos para o WSL: 3100 (provas), 3101 (HAPVIDA), 3200 (Populos UniconOS SDK) |
+| 127.0.0.1:3131/3132/3133 | dentro do eLux | Sistemas locais HAPVIDA Local, BTG e Porto (não saem do aparelho) |
 
 ---
 
@@ -802,6 +831,174 @@ Objetivo: o aluno coloca a digital no eLux e a prova dele abre em quiosque, com 
 6. **Ciclo no eLux** (`prova.sh`): baixa as digitais dos alunos com prova pendente → identifica → pede o token da prova ao site → Edge `--kiosk` → reabre se fechado → volta à digital quando o aluno clica "Encerrar" (ou 2 min após o resultado). Log em `/tmp/provas.log`.
 7. **Cada equipamento da sala precisa do próprio leitor USB.**
 8. Teste no servidor antes do eLux: `43-provas-teste-digital.sh` (identificação em Xvfb com a galeria do site).
+
+## Fase 24 — Simulador de saúde HAPVIDA no servidor (OU "HAPVIDA")
+
+Objetivo: uma OU com login AD em que a recepção cadastra pacientes (foto e digital) e o paciente vê os próprios exames e prontuário depois de pôr o dedo no leitor do eLux. Todos os dados são fictícios. Código em [`apps-servidor/hapvida/`](../apps-servidor/hapvida/README.md).
+
+1. **Servidor:** `deploy/install-server.ps1`.
+   - Sobe o container `hapvida`, reaproveitando a imagem `populos-provas`, com Flask, waitress e libfprint.
+   - Porta `127.0.0.1:3101`; o código fica montado só para leitura.
+   - Dados em `/root/hapvida/data` (`hapvida.db`, `digitais/`, `fotos/`).
+   - Diretório virtual IIS `/hapvida` (`deploy/web.config`).
+   - Senhas nos rótulos "HAPVIDA admin" e "HAPVIDA chave dos eLux", passadas ao container por stdin.
+2. **Pacote** `populos_hapvida` (`deploy/build-package.sh`):
+   - `/usr/bin/hapvida-digital` (GTK + libfprint, `native/hapvida-digital.c`);
+   - `/usr/bin/hapvida-prontuario` (`elux/prontuario.sh`);
+   - regra USB.
+   - Imagem v29 = v22 + `populos_hapvida`, com `deploy/import-image.ps1`.
+3. **OU:** `deploy/register-scout.ps1` cria a OU 13 e o setup 9 (cópia da Populos, AD) com dois apps: "Cadastro de Pacientes" (Edge em `/hapvida/admin`) e "Exames e Prontuário" (`hapvida-prontuario`). Os arquivos da OU vão em `/setup/hapvida/{servidor,chave,logo.png,cor-fundo}`.
+   - `/setup/populos-digital/DESATIVADO` desliga o portão de digital no login, se a imagem ainda o tiver.
+4. **Câmera no cadastro:** `getUserMedia` exige contexto seguro.
+   - O atalho de cadastro usa um perfil próprio do Edge (`--user-data-dir=.../app-hapvida-camera`).
+   - Nesse perfil, `--unsafely-treat-insecure-origin-as-secure=http://<servidor>` vale só para a origem interna (`deploy/enable-camera-scout.ps1`).
+   - Em produção, use HTTPS.
+5. **Troca de senha do admin:** `deploy/rotate-credentials.py` recebe a senha por stdin e faz backup do SQLite. A chave dos aparelhos continua a mesma.
+6. **Validação:** 8 testes de backend em `tests/test_app.py`. O ciclo com digital física no eLux **não foi validado**, porque o leitor do servidor esteve ausente.
+
+## Fase 25 — Netskope Client nas OUs Populos, HAPVIDA e HAPVIDA Local
+
+Código em [`apps-locais/netskope-elux/`](../apps-locais/netskope-elux/README.md). O instalador oficial é um `.run` (makeself) cujo **nome** traz o tenant e o token de convite. É um segredo.
+
+1. `deploy/build-package.sh <versão>` extrai o `.run` e monta `populos_netskope` em `/opt/netskope`. O script confere que o token **não** foi para o pacote. Ajustes para o eLux:
+   - `ip6tables` → `xtables-nft-multi`;
+   - CA em `/var/lib/netskope/ca-certificates`, porque `/usr` é somente leitura;
+   - sem o `nsdiag`, para caber;
+   - autostart do agente do usuário por `.desktop`, que espera o `stagentd` e o socket `svc`. Sem isso o cliente não habilita.
+2. **Cadastro e persistência:** o nome do instalador vai como FileEntry `/setup/netskope/instalador`, rótulo "Netskope instalador OU Populos".
+   - `netskope-estado.sh preparar` restaura de `/setup/netskope-estado` ou faz o cadastro, com até 24 tentativas.
+   - `salvar` grava o estado na parada do serviço e pelo `netskope-salvar.timer` (3 min depois do boot e a cada 10 min).
+   - Sem isso, `/opt` em RAM obriga a um cadastro novo a cada boot.
+3. **Imagem:** inclua também `systemlibs_libindicator3` e `libdbusmenu` (ícone na bandeja). Imagens finais com a versão .4: v43 (Populos), v44 (HAPVIDA) e v45 → v46 (HAPVIDA Local).
+4. **OU Populos:** ganhou um setup próprio (12, cópia do 0) para não mudar as OUs que herdam o setup 0 (`deploy/configurar-ou-populos.ps1`).
+5. **Validação:** o ícone fica colorido na bandeja em 1–2 min, e o aparelho aparece no console Netskope (Devices). O diagnóstico do Scout traz `populos_netskope-status.log`.
+
+## Fase 26 — Reparar as imagens depois de importar pacotes no ELIAS (rotina obrigatória)
+
+**Sintoma:**
+- depois de **qualquer** importação de pacote no ELIAS 18, as imagens já criadas passam a dar 404 em `/ELIAS/<container>/<imagem>.idf`;
+- o log do ELIAS mostra "Legacy IDF failed; IDF not found or invalid";
+- o eLux falha no Update.
+
+**Correção:** `scripts/reparar-idfs.ps1` (todas as imagens em `Setup.ImageFile`) ou `-Versoes v31,v35`. Para cada imagem que não baixa, o script:
+1. faz backup do JSON da IDF em `C:\ScoutSetup\backup\idf-populos-<v>-antes-<data>.json`;
+2. remonta com a **mesma** seleção de EPM/FPM;
+3. compara a seleção antiga com a nova e não grava se mudou;
+4. grava no **mesmo registro** (`PUT /ELIAS/api/<container>/v1.0/idf/<_id>` com `{idf, silent, overwrite}`);
+5. testa o download.
+
+Rode logo depois de cada importação. O Populos UniconOS SDK (Fase 30) faz o mesmo na opção "Reparar imagens em uso".
+
+## Fase 27 — Sistemas locais dentro do eLux (HAPVIDA Local, BTG, Porto)
+
+Objetivo: o sistema roda **no próprio aparelho**, sem servidor nem rede. Tem cadastro com foto (arquivo ou câmera) e digital, e o cliente, identificado pela digital, vê a área dele numa janela do Edge. Cada aparelho tem a própria base, sem sincronização. Códigos em [`apps-locais/`](../apps-locais/).
+
+| Sistema | OU (GroupID / Setup) | Pacote | Porta loopback | Imagem |
+|---|---|---|---|---|
+| HAPVIDA Local (saúde) | 14 / 10 | `populos_hapvida_local` | 3131 | v30 → v46 |
+| BTG (banco; mais o AVD `ms_avd_client`) | 15 / 11 | `populos_btg_local` | 3132 | v35 |
+| Porto (seguros) | 11 / 7 | `populos_porto_local` | 3133 | v36 |
+
+Arquitetura comum:
+1. **Backend** Flask + waitress em `/opt/<sistema>`, rodando com o **Python 3.10 e o FPM `python3_flask` oficiais do catálogo** (não há Docker no eLux). As dependências extras ficam em `vendor/`.
+   - O serviço systemd roda como `elux` e atende só em `127.0.0.1:<porta>`.
+2. **Dados persistentes** em `/setup/<sistema>/dados` (SQLite, `digitais/`, `fotos/`), criados com `tmpfiles.d` em 0700.
+   - A chave local `.chave-local` é gerada no primeiro início, uma por aparelho.
+3. **Senha do admin:** só um **verificador PBKDF2-SHA256** em `/setup/<sistema>/admin-auth.json`, entregue por FileEntry. A senha em texto fica no `credenciais.txt`.
+4. **Telas nativas de digital** (C + GTK3 + libfprint, em `native/`): preferem o leitor U.are.U, e `POPULOS_LEITOR` muda o driver.
+   - Os launchers `elux/admin.sh` e `elux/cliente.sh` abrem o Edge com perfil próprio. O do cliente é temporário, e fechar o navegador revoga a sessão.
+   - A sessão expira em 15 min.
+5. **A câmera funciona sem exceção**, porque `127.0.0.1` é contexto seguro.
+6. **Build e implantação:**
+   1. `deploy/build-package.sh <versão>` (no WSL);
+   2. `deploy/import-package.ps1 -Versao <v>`;
+   3. imagem com `imagem-derivada.ps1 -MaisEpms python3,python3_flask,populos_<x>_local`;
+   4. **`reparar-idfs.ps1`**;
+   5. `deploy/create-ou.ps1` (BTG, HAPVIDA Local) ou `deploy/atualizar-ou.ps1` (Porto). Os dois fazem backup e se recusam a rodar duas vezes.
+7. **Tema da OU:** padrão "Secure Endpoint", azul-marinho com losangos e a marca do cliente.
+   - HAPVIDA Local: `deploy/tema-v4.ps1` (tema `hapvida-v4`, cor `#FF9800`, papel de parede 1920x1080).
+   - BTG: `btg-v1`. Porto: `porto-v2`.
+   - Lembre: nome novo a cada troca de imagem.
+8. **Testes:** 7 a 8 testes de backend com `--network none` (`deploy/test-isolated.sh`, `tests/`) e conferência do FPM. Faltam o boot real, a digital física e a webcam.
+9. **Cuidado:** formatar ou reinstalar o aparelho apaga a única cópia dos cadastros. Salve `/setup/<sistema>` antes.
+
+## Fase 28 — Word, Excel e PowerPoint (Microsoft 365 web) em todas as OUs
+
+`scripts/apps-office-netskope-hapvida.ps1` cria os três apps Edge `--app`, como o Outlook:
+- endereços `https://{word,excel,powerpoint}.cloud.microsoft`;
+- `--user-data-dir` e `--class` próprios por app;
+- ícones globais `word/excel/powerpoint.png`, gerados por `scripts/icones-office.ps1`.
+
+Vai para as OUs de uso (3–11, 13–15). Ficam de fora Lost & Found, Enterprise e Provas. O script faz backup verificado, roda numa transação e se recusa a rodar duas vezes.
+
+## Fase 29 — Citrix Workspace com home persistente (gnome-keyring)
+
+**Sintoma (OU HAPVIDA Local, `PersistentHomeApplications='ALL'`):**
+- o Workspace pede usuário e senha;
+- depois mostra "Allow";
+- depois disso não abre nada.
+
+Na OU Populos, sem home persistente, funciona.
+
+**Diagnóstico:**
+- o app tipo 17 (StoreFront) enumera os recursos com `storebrowse` em `/tmp/pnlsessions<id>.ini`;
+- com a home persistente, o Workspace guarda a credencial no Secret Service, e as imagens não tinham o FPM `desktop_environment_gnome_keyring` (2,9 MB).
+
+**Ação:**
+```powershell
+.\scripts\imagem-derivada.ps1 -De v45 -Nome populos-elux7-v46 -MaisFpms desktop_environment_gnome_keyring -Publicar
+```
+Resultado: 3.657 MB, sem conflitos, download 200. Depois, setup 10 → v46 e aparelhos marcados.
+
+**Situação:** hipótese **ainda não validada no aparelho** (falta Deliver, Update e teste). Se resolver, aplique o mesmo FPM nas outras OUs com home persistente e Citrix, como a Porto.
+
+## Fase 30 — Populos UniconOS SDK (conversor web de programas e drivers)
+
+Objetivo: transformar um programa ou driver para Ubuntu em EPM/FPM do eLux por uma página web, e criar a imagem no ELIAS sem script. Código e detalhes em [`conversor/README.md`](../conversor/README.md).
+
+1. **Pré-requisitos no WSL (root):**
+   - `python3-flask`, `python3-waitress`, `python3-requests`;
+   - `binutils` (`readelf`/`objdump`), `patchelf`, `apt-file` (rode `apt-file update`), `squashfs-tools`, `dpkg`;
+   - Docker com a imagem `citrix/uniconos7-sdk-epkg:<versão>` (Fase 18).
+2. **Serviço:** copie `conversor/deploy/conversor-unicon.service` para `/etc/systemd/system/` e rode `systemctl enable --now conversor-unicon`.
+   - Porta 3200; dados em `/root/conversor` (`trabalhos/`, `cache/debs`, `segredo-sessao`).
+   - Ele roda como root porque usa Docker e o `epkg`.
+3. **Senha:** gere `/root/conversor/admin-auth.json` a partir do rótulo "Conversor Unicon admin". O arquivo é `{"salt": "<hex>", "iterations": <n>, "digest": "<hex>"}`, com o digest = PBKDF2-HMAC-SHA256(senha, salt, iterations).
+4. **IIS:**
+   - diretório virtual `/conversor` com `conversor/deploy/iis-web.config` (rewrite para `localhost:3200`, upload até 2 GB);
+   - ARR com proxy ligado e timeout de 30 min (`appcmd set config -section:system.webServer/proxy /enabled:True /timeout:00:30:00`).
+5. **Catálogo:** o SDK lê `C:\ScoutSetup\diag\elias-epms.json`, `elias-fpms.json` e `idf-populos-v*.json`, e os atualiza sozinho na criação de imagem.
+   - Para nomear as imagens por OU, ele lê `C:\ScoutSetup\diag\imagens-uso.json`, gerado por `scripts/imagens-uso.ps1`. Rode esse script de novo sempre que a imagem de uma OU mudar.
+   - A tarefa agendada não foi criada no laboratório.
+6. **Uso:**
+   - áreas **Software** (`#software`) e **Drivers** (`#drivers`);
+   - enviar (`.deb`, `.AppImage`, `.run`, `.tar.*`/`.zip`, inclusive com vários `.deb`, ou ELF);
+   - analisar contra a imagem;
+   - converter, opcionalmente embutindo bibliotecas do Ubuntu 22.04 com RPATH;
+   - baixar o ZIP e importar no ELIAS;
+   - **Criar a imagem**, que confere a versão importada, repara as imagens em uso, recusa acima de 3.700 MB sem confirmação e testa o download.
+7. **Por que a criação de imagem é Python (`app/imagem.py`) e não o PowerShell:** um serviço systemd no WSL não consegue chamar `powershell.exe` (interop indisponível). O módulo é uma porta fiel de `montar-idf.ps1`, `imagem-derivada.ps1` e `reparar-idfs.ps1`. `tests/teste_imagem.py v46 v43` confere a porta contra imagens existentes.
+8. **Validação:** `tests/teste_fluxo.py <arquivo> [imagem] [software|driver]` faz login, envio, análise, conversão e download.
+9. **Atenção a pacotes com "Embutir":** pacotes grandes, como o LibreOffice, puxam KF5/Qt6 e explodem de tamanho. Converta sem embutir e confira o tamanho contra o limite da imagem.
+
+## Fase 31 — Operação: script de continuidade, mapa de imagens e GitHub
+
+- `scripts/continuar.ps1`:
+
+  | Comando | O que faz |
+  |---|---|
+  | `status` | Serviços, WSL, sites, OUs e imagens, aparelhos |
+  | `wsl` | Liga o WSL |
+  | `leitor` | Anexa o leitor de digital ao WSL |
+  | `diag -Dispositivo <nome>` | Extrai e resume o diagnóstico mais novo do aparelho |
+  | `arquivo -Ou <id> -Destino <caminho> -Arquivo <local>` | Regrava um FileEntry, com backup |
+  | `sync` | Copia tudo para o repositório, saneia o histórico e procura segredos |
+  | `push -Mensagem "..."` | `sync` + commit + push, e se recusa se achar segredo |
+  | `manual` | Gera o manual em Word e PDF |
+
+- **Saneamento:** `C:\ScoutSetup\saneamento.txt` (fora do Git) tem uma linha `regex => troca` por valor sensível: e-mails, IDs do tenant e do Cloudflare, senhas antigas, tokens. O `sync` aplica as trocas ao diário e falha a publicação se algum desses valores aparecer em qualquer arquivo do repositório.
+- **Diário vivo:** registre tudo no MD do projeto. O `sync` o publica saneado como `docs/HISTORICO.md`.
+
 ## Operação e diagnóstico
 
 ### Onde olhar
@@ -852,6 +1049,13 @@ Objetivo: o aluno coloca a digital no eLux e a prova dele abre em quiosque, com 
 | Scout Board não abre a porta | DB Layer com "Cannot start ZMQ broker" | Reiniciar DB Layer → Board |
 | Comandos do Scout não chegam a eLux de fora | Scout precisa abrir conexão até o eLux | VPN ou Scout Cloud Gateway |
 | `sqlcmd` não conecta | ODBC 18 exige certificado confiável | `sqlcmd -C` |
+| Update falha e a `.idf` dá 404 logo depois de importar um pacote | O ELIAS invalida as IDFs existentes a cada importação | `scripts/reparar-idfs.ps1` (Fase 26) |
+| Citrix Workspace: login, "Allow" e depois nada (OU com home persistente) | Sem Secret Service (`desktop_environment_gnome_keyring`) | Imagem com esse FPM (Fase 29; a validar) |
+| Netskope cadastra de novo a cada boot ou não habilita | `/opt` em RAM; agente do usuário iniciado antes do `stagentd` | Estado em `/setup/netskope-estado`; autostart que espera o socket (Fase 25) |
+| Câmera bloqueada no cadastro web | `getUserMedia` só em contexto seguro | Loopback, HTTPS ou exceção só para a origem interna em perfil próprio |
+| Sistema local não abre no eLux | Serviço sem `admin-auth.json` da OU ou imagem sem `python3_flask` | FileEntry da OU; imagem com `python3,python3_flask` |
+| SDK: "Criar a imagem" falha chamando PowerShell | Serviço systemd do WSL não tem interop com o Windows | Já resolvido: `conversor/app/imagem.py` usa a API do ELIAS direto |
+| Pacote convertido enorme | "Embutir" puxou bibliotecas de outros toolkits (KF5/Qt6) | Converter sem embutir; incluir na imagem os FPMs Unicon indicados |
 
 ---
 
@@ -888,6 +1092,11 @@ Objetivo: o aluno coloca a digital no eLux e a prova dele abre em quiosque, com 
 | GLPI | Funcionando (Fase 20) no WSL do próprio servidor | Para produção, servidor próprio e HTTPS; o agente aceita `/setup/glpi-agent/server` |
 | eLux dual-boot com TPM (Notebook-Wagner) | Não aceita imagem nova enquanto a chave estiver selada para o Windows | Reinstalar sem dual-boot; com partições maiores volta o VS Code nativo |
 | Portable01 (TV) com Chrome | Partição `custom` de 2,1 GB, a testar | Se falhar, imagem da TV sem `google_chrome` |
+| Citrix na HAPVIDA Local (v46, gnome-keyring) | Imagem pronta, sem teste no aparelho | Deliver + Update no notebookCinza e testar |
+| Sistemas locais (HAPVIDA Local, BTG, Porto) | Backend testado isolado; digital física e webcam não testadas | Testar com leitor e câmera no próprio eLux |
+| Cadastros dos sistemas locais | Só no aparelho, sem backup central | Salvar `/setup/<sistema>` antes de formatar; implementar exportação se for produção |
+| LibreOffice | Primeiro pacote quebrado (só `.deb` dentro); com tudo passa de 3.700 MB | Reconverter sem "Embutir" e tirar Chrome ou Teams da imagem, ou aceitar acima do limite em aparelhos com disco maior |
+| Perfil (apps/papel de parede) por grupo do AD | Não implementado | Apps: expressão `ShowApp` por grupo (nativo, a testar); papel de parede: pacote que troca o tema no login |
 
 ---
 
@@ -916,5 +1125,14 @@ Objetivo: o aluno coloca a digital no eLux e a prova dele abre em quiosque, com 
 | `scripts/uberagent-todas-ous.ps1` | 21 | uberAgent com dois receptores em todas as OUs |
 | `scripts/teams-todas-ous.ps1` | 22 | Teams for Linux nas OUs (menos TV) |
 | `scripts/criar-ou-provas.ps1` | 23 | OU da sala de provas |
+| `scripts/reparar-idfs.ps1` | 26 | Remonta as imagens em uso que dão 404 depois de uma importação |
+| `scripts/apps-office-netskope-hapvida.ps1` | 25, 28 | Word/Excel/PowerPoint web em todas as OUs; Netskope na OU HAPVIDA |
+| `scripts/icones-office.ps1` | 28 | Gera os ícones do Office |
+| `scripts/imagens-uso.ps1` | 30 | Mapa imagem → OUs/aparelhos para o SDK |
+| `scripts/continuar.ps1` | 31 | Status, diagnóstico, FileEntry, sync/push sem segredos, manual |
+| `apps-servidor/hapvida/deploy/*` | 24 | Simulador HAPVIDA: servidor, pacote, imagem, OU, câmera, troca de senha |
+| `apps-locais/<sistema>/deploy/*` | 25, 27 | Build, testes, importação e criação/atualização de OU dos pacotes Netskope, HAPVIDA Local, BTG e Porto |
+| `apps-locais/hapvida-local/deploy/tema-v4.ps1` | 27 | Tema hapvida-v4 na OU HAPVIDA Local |
+| `conversor/` | 30 | Populos UniconOS SDK (serviço, IIS, testes) |
 | `scripts/sql/desfazer-*.sql` | — | Desfazer temas/apps e AD/NonDomain |
 | `scripts/verificar-segredos.ps1` | — | Rode antes de todo `git push` |

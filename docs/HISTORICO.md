@@ -773,3 +773,20 @@ Get-Content C:\Users\Public\Documents\Unicon\Scout\Server\eluxd.log -Tail 20
   - Entraram: o Populos UniconOS SDK (`conversor/`, nunca enviado antes), temas HAPVIDA v3/v4, ajustes do Netskope e os scripts `reparar-idfs`, `imagens-uso`, `icones-office` e `apps-office-netskope-hapvida` (agora na lista do sync).
   - Achado: o `continuar.ps1` publicado no commit `b5f8831` trazia, na linha de saneamento do HISTORICO, valores sensíveis (senha, chave do uberAgent, token HEC, IDs do tenant e do Cloudflare). O repositório é público.
   - Correção: os pares de saneamento foram para `C:\ScoutSetup\saneamento.txt` (só no servidor), e o sync passou a procurar esses valores em todo o repositório. O histórico antigo ainda os contém: trocar a senha e o token HEC, e decidir se reescreve o histórico do GitHub.
+- **2026-10-30 — Documentação para recriar o projeto em outro ambiente (pedido do Wagner).**
+  - Novo `docs/COMECE-AQUI-IA.md` no repositório, entrada para outro agente de IA:
+    - modelo mental (software pela imagem e configuração pelo banco);
+    - ordem de leitura, mapa das pastas e mapa das fases;
+    - o que adaptar e os rótulos de segredos;
+    - regras, armadilhas e o estado das OUs lido do banco;
+    - o que não foi validado e um prompt pronto.
+  - `docs/GUIA-IMPLANTACAO.md` ganhou as fases 24–31:
+    - simulador HAPVIDA e Netskope;
+    - reparo das imagens depois de importar pacote;
+    - sistemas locais no eLux e Office web;
+    - Citrix com gnome-keyring;
+    - Populos UniconOS SDK e operação/GitHub.
+  - O guia também ganhou o sumário completo, as portas novas, 7 linhas na tabela de problemas, as pendências e o mapa dos scripts.
+  - `docs/LICOES.md` passou de 40 para 54 lições, e o README foi atualizado.
+  - O `sync` passou a levar o simulador HAPVIDA (`apps-servidor/hapvida`, sem backups e dados) e os temas btg e hapvida-v4.
+  - CONTINUAR: Populos Dev na v33 e Provas na v32, conforme o banco.

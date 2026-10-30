@@ -1,0 +1,21 @@
+{
+    "name":  "btg-v2",
+    "accentColor":  "#1E7CF2",
+    "desktopBackgroundImage":  {
+                                   "scaling":  "crop",
+                                   "type":  "png"
+                               },
+    "welcomeBackgroundImage":  {
+                                   "scaling":  "crop",
+                                   "type":  "png"
+                               },
+    "productImage":  {
+                         "scaling":  "contain",
+                         "type":  "png"
+                     },
+    "brandImage":  {
+                       "scaling":  "contain",
+                       "type":  "png"
+                   },
+    "welcomeBackgroundLayout":  "none"
+}

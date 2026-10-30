@@ -1,6 +1,7 @@
 # Continuação do projeto — Scout + ELIAS 18 + UniconOS (eLux 7) da POPULOS
 
-> Documento de passagem para outro agente de IA (Codex). Estado em **28/10/2026**.
+> Documento de passagem para outro agente de IA (Codex). Estado em **28/10/2026**, com atualizações até 30/10 nas notas do fim.
+> Para recriar o projeto em **outro ambiente**, comece por `C:\ScoutSetup\repo-github\docs\COMECE-AQUI-IA.md`.
 > Antes de qualquer coisa: leia este arquivo inteiro, rode `C:\ScoutSetup\continuar.ps1 status` e leia o **fim** de `C:\Users\Administrator\Downloads\SCOUT-ELUX-GLOBAL.md` (seção 7.13, a mais recente).
 
 ## 1. Quem e o quê
@@ -25,7 +26,8 @@
 | Diário completo | `C:\Users\Administrator\Downloads\SCOUT-ELUX-GLOBAL.md` |
 | Script de continuidade | `C:\ScoutSetup\continuar.ps1` (seção 11) |
 | Populos UniconOS SDK / Conversor Unicon (Ubuntu → EPM/FPM; áreas Software e Drivers) | http://10.5.0.166/conversor/ (senha "Conversor Unicon admin"); código `C:\ScoutSetup\conversor`; serviço WSL `conversor-unicon` (porta 3200) |
-| Repositório (cópia sem senhas) | `C:\ScoutSetup\repo-github` (guia `docs/GUIA-IMPLANTACAO.md` fases 1–23, `docs/LICOES.md` 1–40, `docs/DB-REFERENCE.md`) |
+| Repositório (cópia sem senhas) | `C:\ScoutSetup\repo-github`: entrada `docs/COMECE-AQUI-IA.md`, guia `docs/GUIA-IMPLANTACAO.md` fases 1–31, `docs/LICOES.md` 1–54, `docs/DB-REFERENCE.md`. Os docs do repositório são editados lá mesmo; o `sync` só sobrescreve `CONTINUAR-COM-CODEX.md` e `HISTORICO.md` |
+| Lista de saneamento | `C:\ScoutSetup\saneamento.txt` (fora do Git): pares `regex => troca` que o `sync` aplica ao HISTORICO e procura no repositório |
 | Manual Word/PDF | `C:\ScoutSetup\manual\` (+ cópia em Downloads); gerar com `continuar.ps1 manual` |
 | Scripts do Scout (PowerShell) | `C:\ScoutSetup\scripts\` |
 | SDK (pacotes próprios) | fontes `C:\UniconSDK\pkgs\`, scripts `C:\UniconSDK\scripts\NN-*.sh` (rodam no WSL), saídas `C:\UniconSDK\saida\` |
@@ -70,9 +72,9 @@ Não passe comandos com aspas/`$` por `wsl -- bash -c` a partir do PowerShell (q
 | Modo Kiosk | 7 | 4 | sem AD | v22 | Citrix em tela cheia |
 | Populos NonDomain | 8 | 3 | sem AD | v22 | |
 | TV Projetos | 9 | 5 | sem AD | v19 | 6 TVs, NVIDIA, **sem Teams** |
-| Populos Dev | 10 | 6 | AD + digital (2º fator) | v24 | Home persistente |
+| Populos Dev | 10 | 6 | AD + digital (2º fator) | v33 | Home persistente |
 | Porto | 11 | 7 | sem AD; digital só nos apps (desde 29/10) | v36 | Entra direto (`DESATIVADO`); tema porto-v2; apps locais "Meu Seguro Porto" e "Cadastro de Segurados Porto" (populos_porto_local 1.0.0, Downloads\porto-local, porta 3133) |
-| Provas | 12 | 8 | digital (sala de provas) | v27 | App único "Prova" |
+| Provas | 12 | 8 | digital (sala de provas) | v32 | App único "Prova" |
 | HAPVIDA | 13 | 9 | AD, sem digital no login | v44 | Sistema de saúde no servidor + **Netskope** (mesmo instalador da OU Populos) |
 | HAPVIDA Local | 14 | 10 | sem AD, dados por aparelho | v46 (v45 + gnome-keyring para o Citrix; Netskope .4, sem Horizon) | Cadastro, câmera, digital e prontuário no próprio eLux; tema hapvida-v4 (papel de parede "Hapvida Secure Endpoint Branding Scene", Downloads\hapvida-v4) |
 | BTG | 15 | 11 | sem AD, dados por aparelho | v35 | Clone da HAPVIDA Local com tema btg-v1, AVD (ms_avd_client) e app local BTG (populos_btg_local 1.0.1, Downloads\btg-local) |
@@ -154,7 +156,7 @@ Fluxo:
 
 1. **Testar a sala de provas no Notebook-Wagner** (OU 12, v27 entregue em 27/10): confirmar no diagnóstico (`continuar.ps1 diag -Dispositivo Notebook-Wagner`) que `current.idf` é a v27 e que `/tmp/provas.log` mostra "digital: saída 0, aluno 'N'"; depois a prova deve abrir em quiosque com o nome. Se a v27 não instalou: Update software de novo (após o Deliver terminar).
 2. **Recadastrar a digital do Diego Cardoso** em `/provas/admin` (com o leitor plugado no servidor e `continuar.ps1 leitor`).
-3. **Enviar ao GitHub** o que mudou depois do commit `71c0d85`: botão Reiniciar (digital 1.2.2, `prova.sh`, `25-populos-digital`), Porto sem digital, anexo automático do leitor, `continuar.ps1`, este documento, lições/guia correspondentes. Use `continuar.ps1 push -Mensagem "..."` só quando o Wagner pedir.
+3. **GitHub em dia (30/10)**. Próximos envios: `continuar.ps1 push -Mensagem "..."`, só quando o Wagner pedir. Pendente: trocar as credenciais já expostas (ver a seção 7.13 do diário) e decidir sobre o histórico antigo do repositório.
 4. **Portable01 (TV)** ainda na v5: entregar v19 e verificar espaço (partição `custom` de 2,1 GB; Chrome + uberAgent podem não caber).
 5. **Menu do dual boot personalizado** (pedido de 28/10, foto de um cliente com "Choose how to start" / "Enterprise OS"): é o tema GRUB do pacote `bootloader` em `/boot/grub/themes/dualboot/` (`theme.txt`, `background.png`, `icons/{windows,elux}.png`, `select_*.png`); nomes das entradas e `set theme` vêm de `/usr/share/unicon/shell-lib/dualboot` (sed sobre `menuentry "Start eLux Normally"`). Pacote extraído em `C:\ScoutSetup\dualboot\x\`. Tempo/padrão oficiais: `/usr/sbin/dualboot-set-menu --default uniconos --timeout 20` (Scout) ou `UniconOSDualBoot.exe boot-menu --default uniconos --timeout 20` (Windows). **Risco:** o boot é medido no TPM (PCR 8/9); trocar os arquivos do GRUB pode impedir a abertura da partição criptografada. Aguardando o Wagner decidir (perguntar à Citrix/cliente; se seguir, testar só num aparelho reinstalável) e mandar marca, textos, imagem e tempo.
 6. **SAP no UniconOS** (pergunta de 26/10, sem decisão): opções web (WebGUI/Fiori, sem espaço), Citrix (SAP GUI publicado) ou SAP GUI for Java empacotado (250–300 MB; não cabe sem tirar algo). Aguardando dados do SAP.
