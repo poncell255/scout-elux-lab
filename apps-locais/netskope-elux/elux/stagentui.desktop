@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Netskope Client
+GenericName=Netskope client GUI
+Comment=Netskope client GUI (eLux: abre depois do stagentd)
+Exec=/opt/netskope/stagent/scripts/iniciar-usuario.sh stAgentUI
+Icon=/opt/netskope/stagent/resources/64x64_color.ico
+Terminal=false

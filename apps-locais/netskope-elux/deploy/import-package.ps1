@@ -1,4 +1,4 @@
-﻿param([string]$Versao = '142.1.0.2831.1')
+﻿param([string]$Versao = '142.1.0.2831.4')
 # Importa o populos_netskope no ELIAS e atualiza o cache do catÃ¡logo (C:\ScoutSetup\diag\elias-epms.json / elias-fpms.json).
 $ErrorActionPreference = 'Stop'
 $src = 'C:\Users\Administrator\Downloads\netskope-elux'

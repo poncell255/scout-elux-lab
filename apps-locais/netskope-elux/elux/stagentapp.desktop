@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
 Name=Netskope Client Agent
-Comment=Agente do usuário do Netskope (substitui o serviço systemd --user do instalador)
-Exec=/bin/sh -c 'pgrep -u "$(id -u)" -x stAgentApp >/dev/null || exec /opt/netskope/stagent/stAgentApp'
+Comment=Agente do usuário do Netskope (substitui o serviço systemd --user do instalador); espera o stagentd
+Exec=/opt/netskope/stagent/scripts/iniciar-usuario.sh stAgentApp
 Terminal=false
 NoDisplay=true
 X-MATE-Autostart-enabled=true

@@ -649,3 +649,127 @@ Get-Content C:\Users\Public\Documents\Unicon\Scout\Server\eluxd.log -Tail 20
       1. o Wagner mover o NotebookCinza da OU Porto para a OU Populos;
       2. Deliver software e depois Update software;
       3. reiniciar e conferir o ícone colorido da Netskope na bandeja e o aparelho no console da Netskope.
+  - **GitHub (29/10/2026):** a pedido do Wagner, `continuar.ps1 push` enviou o commit `b5f8831` para github.com/poncell255/scout-elux-lab.
+    - A busca de segredos deu 0 valores do `credenciais.txt`, e o token do Netskope também não está em nenhum arquivo.
+    - O `sync` agora copia `hapvida-local`, `btg-local`, `porto-local` e `netskope-elux` para `apps-locais/`, só o código: sem `saida/`, dados, pacotes ou o `.run`.
+    - O Wagner também pediu o **Gitea**, mas não existe Gitea configurado no servidor: nenhum remote, container, serviço ou anotação. Falta ele informar a URL e o repositório.
+    - **Teste 1 (diag 3, 17:46):** o NotebookCinza está na OU Populos com a v37. O ícone aparece, mas o Netskope **não fica habilitado, nem clicando**.
+      - O cadastro foi feito no boot anterior: o journal mostra `netskope-estado: estado restaurado`, e `stAgentSvc`, `stAgentApp` e `stAgentUI` estão rodando.
+      - Não existe interface de túnel. Os logs do Netskope, em `/opt/netskope/stagent/logs`, não entram no diagnóstico.
+      - O `stAgentSvc` chama `ip`, `iptables` e **`ip6tables`**, e esse último não existe no eLux: o `openvpn` só traz iptables-nft e `xtables-nft-multi`.
+      - Ele também grava a CA em `/usr/local/share/ca-certificates`. No eLux só são graváveis `/etc`, `/opt`, `/var`, `/root` e `/home/elux`.
+    - **Pacote 142.1.0.2831.2:**
+      - links `ip6tables`, `-save` e `-restore` para `xtables-nft-multi`;
+      - `/usr/local/share/ca-certificates` → `/var/lib/netskope/ca-certificates` (tmpfiles);
+      - `/usr/share/diagnostic/commands.d/populos_netskope-status`, que coloca no diagnóstico do Scout:
+        - systemctl, `nsclient status`, ip/rotas, iptables e resolv.conf;
+        - as últimas 600 linhas de cada log do Netskope.
+      - Imagem **v38** = mesma montagem com o .2: 3.694 MB, sem conflitos. Backup `ScoutEnterprise-pre-netskope-v38-20261029-175710.bak`; setup 12 → v38; NotebookCinza marcado.
+      - O pacote tem a mensagem "'enable' command is not permitted by admin". Por isso também pode ser política do tenant: cliente desabilitado pelo admin, ou o usuário sem permissão para habilitar.
+    - **Teste 2 (diag 4, v38, 18:01):** continua sem habilitar.
+      - O cadastro e a configuração do tenant estão completos: `nsconfig.json`, `nssteering.json` ("Default tenant config", Traffic Mode all), CA e certificado do usuário. Os certificados foram para `/usr/local/share/ca-certificates`, agora em `/var`.
+      - O iptables está vazio, e não existe túnel.
+      - O log do `stAgentSvc` repete `CNpaTunnelMgr Failed to get Active User Session ID`, `Can not find session -1` e `User config not found for sessId 0`: o serviço **nunca vê a sessão do usuário**.
+      - O `stAgentSvc` não usa logind, só o registro que o `stAgentApp` faz pelo socket `/opt/netskope/stagent/svc`. No eLux o X sobe por `xinit`, sem sessão logind.
+      - **Causa provável:** o `stAgentApp` abre no autostart às 18:01:20, e o `stagentd` (que espera `network-online`) só sobe às 18:01:48, sem socket. O agente não volta a se registrar.
+      - Além disso, o socket `svc` tinha sido salvo junto com o estado.
+    - **Pacote 142.1.0.2831.3:**
+      - `scripts/iniciar-usuario.sh` espera até 5 min o `stAgentSvc` e o socket antes de abrir o `stAgentApp` e o `stAgentUI` (autostart próprio);
+      - `svc` fica fora do estado salvo e é apagado ao restaurar;
+      - o diagnóstico inclui `~/.netskope/stagent/logs` (agente do usuário), os processos com horário e o `nsclient status` (o eLux não tem `timeout`).
+      - A v39 saiu com o .2 por engano: um `select -First 1` interrompeu o `import-package.ps1` antes de atualizar o catálogo. Ficou sem uso.
+      - **Imagem v40** (.3): 3.694 MB, sem conflitos. Backup `ScoutEnterprise-pre-netskope-v40-20261029-181033.bak`; setup 12 → v40.
+  - **Conversor Unicon (29/10/2026):** a pedido do Wagner, página web que converte programas Ubuntu em EPM/FPM do eLux: **http://10.5.0.166/conversor/**. A senha fica em `credenciais.txt`, rótulo "Conversor Unicon admin".
+    - **Código e serviço:** código em `C:\ScoutSetup\conversor`, com README. O serviço `conversor-unicon.service` roda no WSL (Flask + waitress, porta 3200, dados em `/root/conversor`). O IIS tem o diretório virtual `/conversor` (`C:\inetpub\conversor\web.config`, upload até 2 GB) e o timeout do proxy ARR passou para 30 min.
+    - **Formatos:** `.deb`, `.AppImage`, `.run` (makeself), tar/zip e ELF. Nada é executado.
+    - **Análise:** cruza cada biblioteca com o próprio pacote, a imagem escolhida e o catálogo do ELIAS (`elias-fpms.json`). Também confere a GLIBC (eLux = 2.35, base Ubuntu 22.04), conflitos de arquivos, scripts de instalação, serviços, `.desktop` e tamanho.
+    - **Conversão:**
+      - embute do Ubuntu 22.04 as bibliotecas que faltam (`apt-file` em lote + `apt-get download`, recursivo) em `/opt/<nome>/lib-ubuntu`, com RPATH via `patchelf`;
+      - habilita os serviços;
+      - gera o pacote com o epkg oficial e o prefixo `populos_`.
+      - O download traz o zip para o ELIAS e o comando `imagem-derivada.ps1`.
+    - **No WSL instalei** `python3-flask`, `python3-waitress`, `patchelf`, `zstd`, `apt-file` (índice atualizado) e `squashfs-tools`.
+    - **Testes:**
+      - `xdotool`: o eLux já tem; detectou 1 conflito.
+      - `gnome-mines`: faltavam `libhandy` e `libgnome-games-support`; embutiu as duas e o `libgee` indireto, em 50 s. O fluxo completo pelo IIS (login, upload, análise, conversão, download) funcionou.
+      - Os pacotes de teste não foram importados no ELIAS.
+    - **Achado:** a tarefa **WSL GLPI** (`sleep infinity`, mantém o WSL ligado) tinha terminado às 8:47 com 0x8007042B. Desde então o WSL desligava ocioso e parava os serviços (conversor, provas, GLPI). Religada com `Start-ScheduledTask`; se acontecer de novo, ver por que ela cai.
+
+  - **HAPVIDA Local: papel de parede no modelo BTG (30/10/2026):** pedido do Wagner. Tema **`hapvida-v3`** só na OU 14 (HAPVIDA Local); a OU 13 (HAPVIDA) continua com o `hapvida-v2`.
+    - Papel de parede e boas-vindas gerados a partir do BTG por `hapvida-local\deploy\gerar-papel-v3.ps1`: fundo azul-escuro HAPVIDA (#002A58), losangos laranja #FF9800 (mesma cor de destaque do tema), flor colorida da HAPVIDA + "Hapvida" em branco no lugar do logo btg, "Secure Endpoint / Powered by Citrix" mantido. Boot, brand e `accentColor` iguais ao v2. Fontes em `Downloads\hapvida-v3`.
+    - DB por `hapvida-local\deploy\tema-v3.ps1`: backup `ScoutEnterprise-pre-hapvida-local-tema-v3-20261030-095335.bak` (verificado); arquivos do tema trocados (UCFT 645–649 removidos), `CurrentTheme=hapvida-v3`; notebookcinza e Notebook-Wagner (ambos na OU 14) marcados SetupChanged/ApplicationsChanged. Nenhum comando de reinício enviado; aparece após reiniciar o eLux (pode precisar de dois reinícios).
+
+  - **Conversor fora do ar, 502.3 (30/10/2026):** a tarefa **WSL GLPI** caiu de novo em 29/10 às 18:43 (0x8007042B) e o WSL desligou. Religada, e agora com um segundo gatilho que repete a cada 5 min (`MultipleInstances=IgnoreNew`; sem restrição de bateria): se o `sleep infinity` morrer, ela volta sozinha em até 5 min. Conversor (3200 e `/conversor/` pelo IIS) respondeu 200 depois disso.
+
+  - **Word, Excel e PowerPoint (Microsoft 365 web) em todas as OUs + Netskope na OU HAPVIDA (30/10/2026):** pedido do Wagner. Backup `ScoutEnterprise-pre-office-netskope-hapvida-20261030-101723.bak` (verificado); script `C:\ScoutSetup\scripts\apps-office-netskope-hapvida.ps1` (transação única).
+    - **Ícones** desenhados com System.Drawing (`C:\ScoutSetup\scripts\icones-office.ps1`): `word.png`, `excel.png`, `powerpoint.png` (32x32, estilo Office: folha clara + quadrado com a letra; versões 128 e prévia `C:\ScoutSetup\icons\preview-office.png`), gravados como UCFT globais (`FileType=1`).
+    - **Apps** (cópias do Outlook web da OU Populos, app 4): `microsoft-edge --app=https://{word,excel,powerpoint}.cloud.microsoft --no-first-run --user-data-dir=/home/elux/.config/microsoft-edge/app-<nome> --class=<Nome>`, na área de trabalho, sem autostart. Os três endereços responderam 200 do servidor.
+    - **OUs (12, apps 101–136):** FollowMeDesktop 3, Populos 4, POC-BCR 5, Bom Jesus 6, Modo Kiosk 7, Populos NonDomain 8, TV Projetos 9, Populos Dev 10, Porto 11, HAPVIDA 13, HAPVIDA Local 14, BTG 15. Ficaram de fora: Lost & Found (0, 1), Enterprise (2, raiz da herança: entraria em duplicidade nas OUs com `UseParentApps=1`) e Provas (12, só a prova).
+    - **Netskope na OU HAPVIDA (13):** imagem **populos-elux7-v41** = v29 + `populos_netskope` 142.1.0.2831.3 + `systemlibs_libindicator3` + `libdbusmenu` = **3.695 MB**, ELIAS sem conflitos/faltantes (o cookie do ELIAS tinha expirado e foi renovado). Setup 9 → v41; arquivo `/setup/netskope/instalador` copiado da OU Populos (mesmo token de convite). A HAPVIDA Local (14, v31 = 3.658 MB) não cabe com o Netskope (~3.725 MB) sem tirar algo (ex.: Horizon, como no BTG).
+    - Dispositivos marcados SetupChanged/ApplicationsChanged: Portable01 (9), notebookcinza e Notebook-Wagner (14). Nenhum comando de reinício/update enviado. O Netskope continua sem validação de "enable" (pendente o teste da v40 / .3).
+
+  - **Imagens antigas pararam de ser entregues (30/10/2026):** o Update do Wagner (comando 70, OU HAPVIDA Local) falhou com `404` em `http://10.5.0.166/ELIAS/UC_RP6_X64/populos-elux7-v31.idf`. O ELIAS só servia v2, v39, v40 e v41; todas as outras davam 404 (`elias.log`: "Legacy IDF failed; IDF not found or invalid").
+    - Os registros afetados estavam marcados `conflicted=true` (`ctxext_uidialog` × `ica_webview`), embora v40/v41 tenham os mesmos dois FPMs sem conflito. A marcação apareceu depois da importação do Netskope .3 (29/10 21:09): a v38 (20:56) ficou marcada e a v39 (21:09:56) não. Só desmarcar não resolve: o ELIAS passa a dizer "IDF generation ... failed. The IDF is not valid" para o registro antigo.
+    - **Correção:** cada imagem em uso foi remontada do zero com a mesma seleção (`imagem-derivada.ps1 -De vX -Nome populos-elux7-vX`, sem `-Publicar`; 0 diferenças de EPM/FPM e mesmo tamanho) e gravada no mesmo registro com `PUT /api/UC_RP6_X64/v1.0/idf/<_id>` `{"idf":...,"silent":true,"overwrite":true}`. Mudam só o cabeçalho (autor, datas, checksum). Refeitas: **v19, v22, v31, v32, v33, v35, v36**; todas respondem 200, sem conflitos/faltantes. Imagens sem uso (v1, v3–v18, v20, v21, v23–v30, v34, v37, v38) continuam marcadas.
+    - Backups: lista completa dos IDFs antes da mudança em `C:\ScoutSetup\backup\elias-idfs-20261030.json` e JSONs de origem em `C:\ScoutSetup\backup\idf-populos-vX-antes-20261030.json`. O cookie do ELIAS foi renovado.
+    - **Depois de importar pacote no ELIAS, testar o download dos IDFs em uso** (`Invoke-WebRequest http://localhost/ELIAS/UC_RP6_X64/<imagem>.idf`) e, se der 404, repetir o procedimento acima.
+
+  - **Netskope na HAPVIDA Local (30/10/2026):** o Wagner viu o Netskope sumir no notebookcinza. Ele está na OU 14 (HAPVIDA Local, v31), e a v31 não tem Netskope; o ícone vinha da v40 (OU Populos). Escolha do Wagner: Netskope na HAPVIDA Local sem o Horizon.
+    - Imagem **populos-elux7-v42** = v31 − `vmwareviewclient` + `populos_netskope` 142.1.0.2831.3 + `systemlibs_libindicator3` + `libdbusmenu` = **3.654 MB**, ELIAS sem conflitos/faltantes; download do IDF 200.
+    - DB (`hapvida-local\deploy\netskope-v42.ps1`): backup `ScoutEnterprise-pre-netskope-hapvida-local-20261030-105119.bak` (verificado); setup 10 → v42; `/setup/netskope/instalador` copiado da OU Populos; app Horizon (84, linha em `VDA`) removido; notebookcinza e Notebook-Wagner marcados. Falta Deliver/Update da v42 e reinício.
+
+  - **Netskope sem ícone na HAPVIDA Local, diag 5 (30/10/2026):** `stAgentSvc` rodando e socket `svc` criado, mas os dois `iniciar-usuario.sh` (usuário elux) continuavam esperando e o serviço repetia "Failed to get Active User Session ID". **Causa:** `/opt/netskope/stagent` estava `drwx------ root`: o `salvar` cria `/setup/netskope-estado` com modo 700 e o `cp -a "$E/." "$A/"` da restauração aplica esse modo em `$A`. O usuário não chega ao socket nem aos binários. É provável que o teste 2 (diag 4) tenha falhado pelo mesmo motivo.
+    - **Pacote 142.1.0.2831.4:** `chmod 755 "$A"` logo após restaurar (`elux/netskope-estado.sh`). `test-package.sh` passou; importado no ELIAS.
+    - Imagens novas com o .4: **v43** = v40 (Populos, setup 12, 3.694 MB), **v44** = v41 (HAPVIDA, setup 9, 3.695 MB), **v45** = v42 (HAPVIDA Local, setup 10, 3.654 MB), todas sem conflitos. Backup `ScoutEnterprise-pre-netskope-4-20261030-110056.bak`; notebookcinza e Notebook-Wagner marcados.
+    - **A importação voltou a derrubar todas as imagens em uso (404)**, confirmando a causa do problema anterior. Novo script **`C:\ScoutSetup\scripts\reparar-idfs.ps1`**: renova o login, remonta cada imagem dos setups com a mesma seleção e grava no mesmo registro (não grava se a seleção mudar). Rodado: v19, v22, v32, v33, v35 e v36 voltaram a 200. **Rodar depois de toda importação de pacote.**
+
+  - **Teclado da HAPVIDA Local (30/10/2026):** o Wagner estava sem a tecla `?` no notebookcinza (Dell Inspiron 15 5510, ABNT2). Todos os setups usam `XkbLayoutID=7` (`us`), e no layout americano a tecla ABNT2 `/?` ao lado do Shift direito não gera nada. Setup 10 → **`br(abnt2)`** (`XkbLayoutID=35`); backup `ScoutEnterprise-pre-teclado-abnt2-20261030-113300.bak`. As outras OUs continuam com `us`. Confirmado: setup 10 tem `PersistentHomeApplications=ALL` (home persistente) e o cadastro do Netskope fica em `/setup/netskope-estado`.
+
+  - **Tema hapvida-v4 na HAPVIDA Local (30/10/2026):** a pedido do Wagner, o papel de parede passou a ser `Downloads\Hapvida Secure Endpoint Branding Scene (1).png` (1672x941, ampliado para 1920x1080), na área de trabalho e na tela de login. Pasta `Downloads\hapvida-v4` (brand/product e accent #FF9800 iguais aos da v3); deploy `hapvida-local\deploy\tema-v4.ps1`. Backup `ScoutEnterprise-pre-hapvida-local-tema-v4-20261030-131252.bak` (verificado); UCFT 740–744 do hapvida-v3 removidos; CurrentTheme=hapvida-v4; notebookcinza e Notebook-Wagner marcados. A imagem traz "Powered by citrix", mas a OU HAPVIDA Local não usa Citrix.
+
+  - **Citrix Workspace não lista os apps na HAPVIDA Local, diag 6 (30/10/2026):** o Wagner faz login, clica em "Allow" e depois nada abre. Na OU Populos funciona. No diagnóstico:
+    - o `storebrowse --enumerate https://populosntx.cloud.com/...` continuava travado 2,5 min depois; `/tmp/pnlsessions83.ini` veio sem nenhum app (Error=0);
+    - `gnome-keyring.service` falhou no boot: **"gnome-keyring-daemon not found in PATH"**. O FPM `desktop_environment_gnome_keyring` nunca foi selecionado nas nossas imagens;
+    - a imagem só difere da Populos (v43) pelos apps HAPVIDA, python3 e a falta do Horizon. A configuração difere em `AuthType` (sem AD) e `PersistentHomeApplications=ALL`;
+    - é o mesmo quadro da OU Porto (29/10, setup 7 com home persistente), que não foi resolvido só tirando `ica` da persistência.
+    - **Hipótese:** com home persistente, o Citrix tenta guardar o token da loja Cloud no cofre (Secret Service), que não existe, e a listagem trava.
+    - **Ajuste:** imagem **populos-elux7-v46** = v45 + FPM `desktop_environment_gnome_keyring` (3.657 MB, sem conflitos, download 200). Backup `ScoutEnterprise-pre-hapvida-local-v46-20261030-134439.bak` (verificado); setup 10 → v46; notebookcinza e Notebook-Wagner marcados. Falta Deliver/Update da v46, reiniciar e testar o Citrix. Se resolver, vale levar o FPM para a OU Porto (setup 7).
+
+  - **Conversor → "Populos UniconOS SDK" (30/10/2026, pedido do Wagner):** duas áreas com o mesmo motor, como a Citrix separa produto de software e de drivers: **Software** (`/conversor/#software`) e **Drivers** (`/conversor/#drivers`).
+    - Visual no padrão dos papéis de parede da BTG (azul-marinho com losangos), com logo POPULOS em branco (`static/populos-branco.png`, gerado de `brandImage-populos-logo.png.bak`) e "Powered by citrix".
+    - Backend:
+      - cada trabalho guarda `categoria`;
+      - `analise.analisar_driver` lê o `vermagic` dos `.ko` (também `.xz`, `.gz`, `.zst`) e compara com o kernel do eLux (`6.18.48unicon0`, do FPM `kernelimage`);
+      - aponta DKMS, firmware, udev, modprobe, CUPS/PPD (pede `baseprinter_cupsbin`/`cupsfilter`) e SANE (pede `sane_base`).
+    - Testes (`tests/teste_fluxo.py <deb> <imagem> driver`), os dois de ponta a ponta até o .zip:
+      - `printer-driver-brlaser`: detectou o filtro CUPS e o `.drv`;
+      - `v4l2loopback-dkms`: detectou o DKMS e avisou que precisa compilar contra o 6.18.48unicon0.
+    - O leitor de `vermagic` leu `5.15.0-91-generic` de um módulo do Ubuntu. Serviço reiniciado.
+    - **Lista de imagens no SDK (30/10):** o seletor agrupa as imagens em "Em uso nas OUs" e "Sem OU (versões anteriores)".
+      - Cada imagem aparece como `vX · OU · tamanho`; abaixo vêm os aparelhos e os destaques (Citrix, Horizon, Netskope, apps populos_*).
+      - As OUs vêm de `C:\ScoutSetup\diag\imagens-uso.json`, gravado por `C:\ScoutSetup\scripts\imagens-uso.ps1`. **Rode o script de novo sempre que mudar a imagem de uma OU.**
+      - A tarefa agendada que faria isso a cada 10 min foi bloqueada pela permissão do Claude Code; o Wagner pode criá-la se quiser.
+
+  - **LibreOffice pelo SDK (30/10/2026):** o Wagner converteu `LibreOffice_26.8.2_Linux_x86-64_deb.tar.gz` e importou `populos_libreoffice` 26.8.2 no ELIAS.
+    - **O pacote não serve:** o tar traz uma pasta `DEBS/` com 42 `.deb`, e o conversor só copiou os `.deb` para `/opt/populos_libreoffice/DEBS`, sem executáveis.
+    - **Correção no conversor:** `.tar`/`.zip` com `.deb` dentro agora tem todos os `.deb` abertos na mesma árvore. Teste:
+      - `/opt/libreoffice26.8` (747 MB) e `/usr/local/bin/libreoffice26.8` ficaram certos;
+      - "Embutir" puxou KF5/Qt6 (plugins kf5/qt6/gtk4 e Java, opcionais) e a árvore foi a 821 MB; o teste passou dos 10 min no epkg e foi interrompido.
+    - **Tamanho:** v46 (3.657 MB) + LibreOffice (~550–750 MB) passa do limite de 3,7 GB do Notebook-Wagner (dual-boot), que está na HAPVIDA Local. O Wagner precisa decidir o que sai da imagem (sugestão: Chrome 451 MB e Teams desktop 279 MB, ficam Edge e Teams web).
+    - **A importação derrubou as imagens em uso de novo (404):** v19, v22, v32, v33, v35, v36, v43, v44 e v46. Ainda não reparado; aguardando o Wagner.
+  - **SDK cria a imagem no ELIAS (30/10/2026):** bloco "4. Criar a imagem no ELIAS" no trabalho pronto, no lugar de rodar `imagem-derivada.ps1`.
+    - O serviço no WSL não consegue chamar o `powershell.exe` (a interop do WSL dá "Invalid argument" dentro do systemd). Por isso `app/imagem.py` porta para Python o `imagem-derivada.ps1`, o `montar-idf.ps1` e o `reparar-idfs.ps1`, falando com a API do ELIAS via `http://10.5.0.166/ELIAS` (login com o rótulo "ELIAS 18 (web)").
+    - `tests/teste_imagem.py` remontou v46, v44, v43, v36, v35, v22 e v19: mesma seleção e mesmo tamanho que o PowerShell.
+    - Fluxo:
+      1. atualiza `elias-epms.json`/`elias-fpms.json`;
+      2. confere se a versão do pacote no ELIAS é a desta conversão;
+      3. opcionalmente repara as imagens em uso que dão 404, com backup em `C:\ScoutSetup\backup`;
+      4. monta a próxima `vN` a partir da imagem escolhida;
+      5. recusa se passar de 3.700 MB, a não ser que se marque a opção;
+      6. publica e testa o download.
+    - Ainda não usado de verdade: os trabalhos do LibreOffice (26.8.2) são o pacote quebrado e precisam ser convertidos de novo.
+- **2026-10-30 — GitHub atualizado (pedido do Wagner).**
+  - `continuar.ps1 sync` sem valores do `credenciais.txt`; enviado com `continuar.ps1 push`.
+  - Entraram: o Populos UniconOS SDK (`conversor/`, nunca enviado antes), temas HAPVIDA v3/v4, ajustes do Netskope e os scripts `reparar-idfs`, `imagens-uso`, `icones-office` e `apps-office-netskope-hapvida` (agora na lista do sync).
+  - Achado: o `continuar.ps1` publicado no commit `b5f8831` trazia, na linha de saneamento do HISTORICO, valores sensíveis (senha, chave do uberAgent, token HEC, IDs do tenant e do Cloudflare). O repositório é público.
+  - Correção: os pares de saneamento foram para `C:\ScoutSetup\saneamento.txt` (só no servidor), e o sync passou a procurar esses valores em todo o repositório. O histórico antigo ainda os contém: trocar a senha e o token HEC, e decidir se reescreve o histórico do GitHub.

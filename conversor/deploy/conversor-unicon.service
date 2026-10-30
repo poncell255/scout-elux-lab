@@ -1,0 +1,17 @@
+[Unit]
+Description=Conversor Unicon (POPULOS) - programas Ubuntu para EPM/FPM do eLux, atras do IIS em /conversor
+After=network-online.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+Environment=CONVERSOR_DADOS=/root/conversor
+Environment=CONVERSOR_PORTA=3200
+Environment=PYTHONDONTWRITEBYTECODE=1
+WorkingDirectory=/mnt/c/ScoutSetup/conversor/app
+ExecStart=/usr/bin/python3 -s -E -B /mnt/c/ScoutSetup/conversor/app/conversor.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

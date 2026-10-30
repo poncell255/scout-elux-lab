@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Populos UniconOS SDK</title>
+<link rel="stylesheet" href="/conversor/static/style.css">
+</head>
+<body>
+<div class="losangos" aria-hidden="true"></div>
+<header class="topo">
+  <div class="marca">
+    <img src="/conversor/static/populos-branco.png" alt="POPULOS" class="logo-populos">
+    <span class="divisor"></span>
+    <div class="titulo"><strong>Populos UniconOS SDK</strong><small>Powered by <span class="citrix">citrix</span></small></div>
+  </div>
+  <nav class="abas" id="abas" hidden>
+    <a href="#software" data-aba="software">Software</a>
+    <a href="#drivers" data-aba="driver">Drivers</a>
+  </nav>
+  <button id="sair" class="link" hidden>Sair</button>
+</header>
+
+<main>
+  <section id="tela-login" class="cartao login" hidden>
+    <h1>Entrar</h1>
+    <p class="sutil">Senha no rótulo <b>Conversor Unicon admin</b> do <code>C:\ScoutSetup\credenciais.txt</code>.</p>
+    <form id="form-login">
+      <input type="password" name="senha" placeholder="Senha" autocomplete="current-password" required autofocus>
+      <button type="submit">Entrar</button>
+      <p id="erro-login" class="erro"></p>
+    </form>
+  </section>
+
+  <section id="tela-app" hidden>
+    <div class="heroi">
+      <p class="sobretitulo" id="h-sobre"></p>
+      <h1 id="h-titulo"></h1>
+      <p id="h-texto"></p>
+    </div>
+    <div class="grade">
+      <div class="coluna-esq">
+        <form id="form-envio" class="cartao">
+          <h2 id="envio-titulo">1. Enviar</h2>
+          <input type="hidden" name="categoria" id="categoria" value="software">
+          <label class="soltar" id="soltar">
+            <input type="file" name="arquivo" id="arquivo" required>
+            <span class="soltar-icone" aria-hidden="true"></span>
+            <span id="soltar-texto"></span>
+          </label>
+          <div class="linha2">
+            <label>Nome do pacote <small>(opcional)</small><input name="nome" placeholder="automático" maxlength="40"></label>
+            <label>Imagem de referência<select name="imagem" id="imagem"></select></label>
+          </div>
+          <p class="info-imagem" id="imagem-info"></p>
+          <div class="progresso" id="progresso" hidden><div></div></div>
+          <button type="submit" id="botao-enviar">Enviar e analisar</button>
+          <p id="erro-envio" class="erro"></p>
+        </form>
+
+        <div class="cartao">
+          <h2 id="lista-titulo">Trabalhos</h2>
+          <ul id="lista" class="lista"></ul>
+          <p class="sutil pequeno">Guardados por 7 dias. Nada do que é enviado é executado: o arquivo só é aberto e analisado.</p>
+        </div>
+      </div>
+
+      <div class="coluna-dir">
+        <div id="vazio" class="cartao vazio">
+          <h2>Como funciona</h2>
+          <ol id="passos"></ol>
+          <div id="extra"></div>
+        </div>
+        <div id="detalhe" hidden></div>
+      </div>
+    </div>
+  </section>
+</main>
+<footer class="rodape">POPULOS · UniconOS 7 (eLux) · Scout Enterprise + ELIAS 18</footer>
+<script src="/conversor/static/app.js"></script>
+</body>
+</html>

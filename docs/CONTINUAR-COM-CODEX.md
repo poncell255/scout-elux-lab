@@ -24,6 +24,7 @@
 |---|---|
 | Diário completo | `C:\Users\Administrator\Downloads\SCOUT-ELUX-GLOBAL.md` |
 | Script de continuidade | `C:\ScoutSetup\continuar.ps1` (seção 11) |
+| Populos UniconOS SDK / Conversor Unicon (Ubuntu → EPM/FPM; áreas Software e Drivers) | http://10.5.0.166/conversor/ (senha "Conversor Unicon admin"); código `C:\ScoutSetup\conversor`; serviço WSL `conversor-unicon` (porta 3200) |
 | Repositório (cópia sem senhas) | `C:\ScoutSetup\repo-github` (guia `docs/GUIA-IMPLANTACAO.md` fases 1–23, `docs/LICOES.md` 1–40, `docs/DB-REFERENCE.md`) |
 | Manual Word/PDF | `C:\ScoutSetup\manual\` (+ cópia em Downloads); gerar com `continuar.ps1 manual` |
 | Scripts do Scout (PowerShell) | `C:\ScoutSetup\scripts\` |
@@ -64,7 +65,7 @@ Não passe comandos com aspas/`$` por `wsl -- bash -c` a partir do PowerShell (q
 |---|---|---|---|---|---|
 | Lost & Found | 0, 1 | 0 | AD | v22 | Destino de eLux novos |
 | Enterprise / FollowMeDesktop | 2 / 3 | 2 / 1 | AD | — | Sem aparelhos, sem imagem |
-| Populos | 4 | 12 (cópia do 0, desde 29/10) | AD | v37 | Apps padrão + Teams for Linux + **Netskope** (populos_netskope 142.1.0.2831.1, Downloads\netskope-elux; cadastro por `/setup/netskope/instalador`) |
+| Populos | 4 | 12 (cópia do 0, desde 29/10) | AD | v43 | Apps padrão + Teams for Linux + **Netskope** (populos_netskope 142.1.0.2831.4, Downloads\netskope-elux; cadastro por `/setup/netskope/instalador`) |
 | POC-BCR, Bom Jesus | 5, 6 | 0 | AD | v22 | Apps padrão + Teams for Linux |
 | Modo Kiosk | 7 | 4 | sem AD | v22 | Citrix em tela cheia |
 | Populos NonDomain | 8 | 3 | sem AD | v22 | |
@@ -72,8 +73,8 @@ Não passe comandos com aspas/`$` por `wsl -- bash -c` a partir do PowerShell (q
 | Populos Dev | 10 | 6 | AD + digital (2º fator) | v24 | Home persistente |
 | Porto | 11 | 7 | sem AD; digital só nos apps (desde 29/10) | v36 | Entra direto (`DESATIVADO`); tema porto-v2; apps locais "Meu Seguro Porto" e "Cadastro de Segurados Porto" (populos_porto_local 1.0.0, Downloads\porto-local, porta 3133) |
 | Provas | 12 | 8 | digital (sala de provas) | v27 | App único "Prova" |
-| HAPVIDA | 13 | 9 | AD, sem digital no login | v29 | Sistema de saúde no servidor |
-| HAPVIDA Local | 14 | 10 | sem AD, dados por aparelho | v31 | Cadastro, câmera, digital e prontuário no próprio eLux |
+| HAPVIDA | 13 | 9 | AD, sem digital no login | v44 | Sistema de saúde no servidor + **Netskope** (mesmo instalador da OU Populos) |
+| HAPVIDA Local | 14 | 10 | sem AD, dados por aparelho | v46 (v45 + gnome-keyring para o Citrix; Netskope .4, sem Horizon) | Cadastro, câmera, digital e prontuário no próprio eLux; tema hapvida-v4 (papel de parede "Hapvida Secure Endpoint Branding Scene", Downloads\hapvida-v4) |
 | BTG | 15 | 11 | sem AD, dados por aparelho | v35 | Clone da HAPVIDA Local com tema btg-v1, AVD (ms_avd_client) e app local BTG (populos_btg_local 1.0.1, Downloads\btg-local) |
 
 Imagens (todas no ELIAS, sem conflitos; tamanho = espaço instalado):
@@ -85,7 +86,9 @@ Imagens (todas no ELIAS, sem conflitos; tamanho = espaço instalado):
 | v24 | v21 (digital, ajustes, home persistente) + Teams | 3.628 MB |
 | v27 | v26 (= v20 Porto sem Teams) + digital 1.2.2 | 3.351 MB |
 | v28 | v23 (Porto com Teams) + digital 1.2.2 | 3.630 MB |
-| v37 | v22 + populos_netskope (sem nsdiag) + systemlibs_libindicator3 + libdbusmenu (OU Populos) | 3.694 MB |
+| v40 | v22 + populos_netskope .3 (sem nsdiag; ip6tables, CA em /var, agente espera o serviço, status no diag) + systemlibs_libindicator3 + libdbusmenu (OU Populos) | 3.694 MB |
+| v41 | v29 (HAPVIDA) + populos_netskope .3 + systemlibs_libindicator3 + libdbusmenu (OU HAPVIDA) | 3.695 MB |
+| v42 | v31 (HAPVIDA Local) − vmwareviewclient + populos_netskope .3 + libindicator3 + libdbusmenu | 3.654 MB |
 
 **Limite:** eLux instalado por pendrive ou dual-boot tem raiz de ~3.700 MB; acima disso o update falha com "image size will exceed media size" (254). Confira o tamanho antes de publicar.
 
@@ -184,3 +187,7 @@ Fluxo:
 > **HAPVIDA Local criada (28/10):** OU14/setup10, sem AD por confirmação do Wagner, imagem v30 pronta no ELIAS (3.657,51 MB, sem conflitos/faltantes). Apps Cadastro de Pacientes (89) e Exames e Prontuário (88) executam no eLux com backend loopback 127.0.0.1:3131 e dados em /setup/hapvida-local/dados. Cada aparelho tem sua base; não houve cópia dos pacientes do servidor. Credencial inicial no rótulo HAPVIDA Local admin do arquivo central; aparelho recebe somente verificador PBKDF2. Testes offline e persistência passaram em ambiente isolado com Python oficial e payload do FPM; boot/leitor/webcam reais pendentes. Nenhum dispositivo movido. Para uso: mover escolhido à OU14, Deliver completo v30 e depois Update, recebendo a configuração. Fontes/README em C:\ScoutSetup\hapvida-local. Detalhes no diário 7.13.
 
 > **OU BTG criada (29/10/2026):** OU 15/setup 11, imagem v35, sem Horizon. Detalhes, backup e testes na seção 7.13 do SCOUT-ELUX-GLOBAL.md. Senha do cadastro no rótulo BTG Local admin do credenciais.txt.
+
+> **Word, Excel e PowerPoint web (30/10):** apps Edge --app para `{word,excel,powerpoint}.cloud.microsoft` com ícones globais `word/excel/powerpoint.png` em todas as OUs de uso (3–11, 13–15); fora: Lost & Found, Enterprise e Provas. Script `C:\ScoutSetup\scripts\apps-office-netskope-hapvida.ps1`.
+
+> **Depois de importar qualquer pacote no ELIAS, rode `C:\ScoutSetup\scripts\reparar-idfs.ps1`.** A importação invalida as imagens já criadas, e os aparelhos recebem 404 no Update. Netskope atual: pacote 142.1.0.2831.4 nas imagens v43 (Populos), v44 (HAPVIDA) e v45 (HAPVIDA Local).

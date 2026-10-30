@@ -1,0 +1,31 @@
+#!/usr/bin/bash
+# Entra no diagnóstico do Scout (diagnostic-commands/populos_netskope-status.log)
+A=/opt/netskope/stagent
+
+echo; echo "===> systemctl status stagentd netskope-salvar.timer <==="; echo
+systemctl status stagentd netskope-salvar.timer --no-pager -l 2>&1 | head -40
+
+echo; echo "===> nsclient status <==="; echo
+( "$A/stAgentCli" status > /tmp/nsclient-status.txt 2>&1 & p=$!; sleep 10; kill $p 2>/dev/null ); head -40 /tmp/nsclient-status.txt; rm -f /tmp/nsclient-status.txt
+
+echo; echo "===> processos Netskope (início) <==="; echo
+ps -eo pid,user,lstart,args 2>/dev/null | grep -E '[s]tAgent' || ps | grep -E '[s]tAgent'
+
+echo; echo "===> arquivos em $A e /setup/netskope-estado <==="; echo
+ls -la "$A" "$A/logs" "$A/data" /setup/netskope-estado /usr/local/share/ca-certificates/ 2>&1
+
+echo; echo "===> ip addr / ip rule / rotas <==="; echo
+ip addr 2>&1; ip rule 2>&1; ip route show table all 2>&1 | head -80
+
+echo; echo "===> iptables / ip6tables <==="; echo
+for t in filter nat mangle; do echo "-- iptables -t $t"; iptables -t $t -S 2>&1; done
+echo "-- ip6tables"; ip6tables -S 2>&1 | head -20
+
+echo; echo "===> /etc/resolv.conf <==="; echo
+cat /etc/resolv.conf 2>&1
+
+for f in "$A"/logs/*.log "$A"/logs/*.txt /home/*/.netskope/stagent/logs/*.log /home/*/.netskope/stagent/logs/*.txt /root/.netskope/stagent/logs/*.log; do
+    [ -f "$f" ] || continue
+    echo; echo "===> tail -n 600 $f <==="; echo
+    tail -n 600 "$f"
+done

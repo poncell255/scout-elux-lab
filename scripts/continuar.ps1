@@ -100,23 +100,32 @@ function Sync {
     Titulo 'Copiando para o repositório'
     $scripts = 'ad-e-nondomain', 'kiosk-sem-ad', 'ntp-elux', 'hosts-ad-elux', 'krb5-elux', 'tela-sempre-ativa', 'criar-ou-tv-projetos', 'tv-projetos-arquivos',
                'montar-idf', 'extrair-fpm', 'criar-ou-populos-dev', 'edge-todas-ous', 'uem-inventario-elux', 'criar-ou-porto', 'imagem-derivada',
-               'chrome-glpi-todas-ous', 'uberagent-todas-ous', 'teams-todas-ous', 'criar-ou-provas'
+               'chrome-glpi-todas-ous', 'uberagent-todas-ous', 'teams-todas-ous', 'criar-ou-provas',
+               'reparar-idfs', 'imagens-uso', 'icones-office', 'apps-office-netskope-hapvida'
     foreach ($s in $scripts) { if (Test-Path "C:\ScoutSetup\scripts\$s.ps1") { Copy-Item "C:\ScoutSetup\scripts\$s.ps1" "$REPO\scripts\" -Force } }
     Copy-Item $PSCommandPath "$REPO\scripts\continuar.ps1" -Force
     robocopy C:\ScoutSetup\provas "$REPO\provas" /E /XD __pycache__ /XF *.pyc *.env /NJH /NJS /NFL /NDL | Out-Null
     robocopy C:\ScoutSetup\manual "$REPO\manual" /E /XD previa /XF manual.md /NJH /NJS /NFL /NDL | Out-Null
     foreach ($p in 'populos_digital', 'populos_glpi', 'populos_ajustes') { robocopy "C:\UniconSDK\pkgs\$p" "$REPO\uniconos-sdk\pkgs\$p" /E /XF *.deb *.fpr /XD output build /NJH /NJS /NFL /NDL | Out-Null }
     Copy-Item C:\UniconSDK\scripts\*.sh "$REPO\uniconos-sdk\scripts\" -Force
+    robocopy C:\ScoutSetup\conversor "$REPO\conversor" /E /XD __pycache__ /XF *.pyc /NJH /NJS /NFL /NDL | Out-Null
+    Copy-Item C:\inetpub\conversor\web.config "$REPO\conversor\deploy\iis-web.config" -Force
     # Apps locais e Netskope: só o código (sem saida/ com pacotes e binários de terceiros, sem dados)
     foreach ($p in 'hapvida-local', 'btg-local', 'porto-local', 'netskope-elux') { if (Test-Path "C:\Users\Administrator\Downloads\$p") { robocopy "C:\Users\Administrator\Downloads\$p" "$REPO\apps-locais\$p" /E /XD saida dados __pycache__ .git /XF *.db *.pyc *.fpm *.epm *.zip *.idf *.run *.env /NJH /NJS /NFL /NDL | Out-Null } }
     if (Test-Path C:\Users\Administrator\Downloads\CONTINUAR-COM-CODEX.md) { Copy-Item C:\Users\Administrator\Downloads\CONTINUAR-COM-CODEX.md "$REPO\docs\CONTINUAR-COM-CODEX.md" -Force }
-    # HISTORICO = MD vivo sem e-mails, IDs do tenant e valores sensíveis já conhecidos
+    # HISTORICO = MD vivo sem e-mails, IDs do tenant e valores sensíveis já conhecidos.
+    # Os pares "regex => troca" ficam em C:\ScoutSetup\saneamento.txt, só no servidor (nunca no repositório).
+    $SAN = 'C:\ScoutSetup\saneamento.txt'
+    if (-not (Test-Path $SAN)) { throw "falta $SAN (pares 'regex => troca' para sanear o HISTORICO)" }
+    $pares = Get-Content $SAN -Encoding UTF8 | Where-Object { $_ -match ' => ' } | ForEach-Object { , ($_ -split ' => ', 2) }
     $h = Get-Content $MD -Raw -Encoding UTF8
-    $h = $h -replace 'Wagner\.poncell@populos\.com\.br', '<email-admin>' -replace '(?i)[a-z]+\.[a-z]+@populos\.com\.br', '<email-usuario>' -replace 'f2c41670-cc12-4596-8c6f-c7a4ca8a7552', '<TENANT_ID>' -replace 'e55fd3ae-eeeb-49ab-937f-c331d78dc678', '<APP_ID>' -replace 'f47613bf343754d4f1c54b20d0d0be09', '<CF_ACCOUNT_ID>' -replace 'e7cf8d199c737d5ffde0deaa1cff7f89', '<CF_ZONE_ID>' -replace 'Plefir@2', '<SENHA>' -replace 'Populos(@|%40)2026', '<SENHA_TV>' -replace 'aabc98c28f524b87ab5e', '<CHAVE_DOWNLOAD_UBERAGENT>' -replace 'e11bfc54-9381-4dea-98a7-202bf7698aeb', '<TOKEN_HEC>'
+    foreach ($p in $pares) { $h = $h -replace $p[0], $p[1] }
     [IO.File]::WriteAllText("$REPO\docs\HISTORICO.md", $h, [Text.UTF8Encoding]::new($false))
     Titulo 'Busca de segredos'
     & "$REPO\scripts\verificar-segredos.ps1" -Raiz $REPO
-    $vals = Get-Content $CRED | ForEach-Object { ($_ -split ' / ')[-1].Trim() } | Where-Object { $_.Length -ge 8 -and $_ -notmatch '^0{8}-' }
+    $vals = @(Get-Content $CRED | ForEach-Object { ($_ -split ' / ')[-1].Trim() } | Where-Object { $_.Length -ge 8 -and $_ -notmatch '^0{8}-' })
+    # Também os valores literais do saneamento (IDs, tokens, senhas) que não podem aparecer em nenhum arquivo
+    $vals += $pares | Where-Object { $_[0] -notmatch '[\\(\[]' } | ForEach-Object { $_[0] }
     $achou = 0
     Get-ChildItem $REPO -Recurse -File | Where-Object { $_.FullName -notmatch '\\\.git\\' -and $_.Extension -notin '.png', '.jpg' } | ForEach-Object {
         $t = [IO.File]::ReadAllText($_.FullName); foreach ($v in $vals) { if ($t.Contains($v)) { Write-Host "SEGREDO em $($_.FullName)" -ForegroundColor Red; $achou++ } } }

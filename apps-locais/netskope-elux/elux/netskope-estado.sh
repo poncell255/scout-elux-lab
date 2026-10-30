@@ -5,7 +5,7 @@
 A=/opt/netskope/stagent
 INSTALADOR=/setup/netskope/instalador
 E=/setup/netskope-estado
-FIXOS=' stAgentSvc stAgentApp stAgentCli stAgentUI nsdiag certutil uninstall.sh installerutil scripts resources ossl-modules logs download tempImages '
+FIXOS=' stAgentSvc stAgentApp stAgentCli stAgentUI nsdiag certutil uninstall.sh installerutil scripts resources ossl-modules logs download tempImages svc '
 log(){ echo "netskope-estado: $*"; }
 
 salvar() {
@@ -24,7 +24,8 @@ salvar() {
 
 preparar() {
     mkdir -p -m 755 "$A/logs" "$A/data"
-    if ls "$E"/nsbranding.json* >/dev/null 2>&1; then cp -a "$E/." "$A/"; log 'estado restaurado'; return 0; fi
+    # cp -a de "$E/." leva o modo 700 de $E para $A; o agente do usuário (elux) precisa entrar em $A (socket svc e binários)
+    if ls "$E"/nsbranding.json* >/dev/null 2>&1; then cp -a "$E/." "$A/"; chmod 755 "$A"; rm -f "$A/svc" "$E/svc"; log 'estado restaurado'; return 0; fi
     local nome; nome=$(head -n1 "$INSTALADOR" 2>/dev/null | tr -d '\r\n ')
     case "$nome" in NSClient_*.run) ;; *) log "nome de instalador inválido em $INSTALADOR"; return 1 ;; esac
     local i rel
